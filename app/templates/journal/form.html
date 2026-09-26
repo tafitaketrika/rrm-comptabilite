@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+{% block title %}Saisie d'une écriture comptable – Le Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+@media (max-width: 767.98px) {
+  .page-title { font-size: 1.1rem; }
+  .form-label { font-size: 0.85rem; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="page-title mb-4"><i class="bi bi-plus-circle"></i> Saisie d'une écriture comptable</h2>
+
+<form method="POST" enctype="multipart/form-data" id="entry-form">
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <!-- 1. Date -->
+                <div class="col-md-3">
+                    <label class="form-label">1. Date *</label>
+                    <input type="text" name="entry_date" id="entry_date" class="form-control" required
+                           value="{{ today_display }}" placeholder="jj/mm/aa" maxlength="8"
+                           pattern="\d{2}/\d{2}/\d{2}">
+                    <div class="form-text">Format : jj/mm/aa (ex. 20/09/26) — Défaut = date du jour</div>
+                </div>
+
+                <!-- 2 & 3. Code crédit + description auto -->
+                <div class="col-md-4">
+                    <label class="form-label">2. Code de crédit *</label>
+                    <select name="credit_account_id" id="credit_account" class="form-select" required>
+                        <option value="">-- Sélectionner un compte --</option>
+                        {% for acc in accounts %}
+                        <option value="{{ acc.id }}" data-name="{{ acc.name }}">{{ acc.code }} – {{ acc.name[:45] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">3. Description du compte de crédit</label>
+                    <div class="account-desc" id="credit_desc">—</div>
+                </div>
+
+                <!-- 4 & 5. Montant + Monnaie crédit -->
+                <div class="col-md-4">
+                    <label class="form-label">4. Montant *</label>
+                    <input type="number" step="0.01" name="amount" id="amount" class="form-control" required value="0" min="0">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">5. Monnaie *</label>
+                    <select name="currency" id="currency" class="form-select">
+                        <option value="MGA" selected>MGA</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+
+                <!-- 6. Description opération -->
+                <div class="col-12">
+                    <label class="form-label">6. Description de l'opération *</label>
+                    <input type="text" name="description" class="form-control" required maxlength="500"
+                           placeholder="Ex. : Approvisionnement de la caisse Benono">
+                </div>
+
+                <!-- 7 & 8. Code débit + description auto -->
+                <div class="col-md-4">
+                    <label class="form-label">7. Code de débit *</label>
+                    <select name="debit_account_id" id="debit_account" class="form-select" required>
+                        <option value="">-- Sélectionner un compte --</option>
+                        {% for acc in accounts %}
+                        <option value="{{ acc.id }}" data-name="{{ acc.name }}">{{ acc.code }} – {{ acc.name[:45] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">8. Description du compte de débit</label>
+                    <div class="account-desc" id="debit_desc">—</div>
+                </div>
+
+                <!-- 9 & 10. Montant débit + Monnaie (pré-rempli) -->
+                <div class="col-md-4">
+                    <label class="form-label">9. Montant (débit)</label>
+                    <input type="number" step="0.01" name="amount_debit" id="amount_debit" class="form-control" value="0" min="0">
+                    <div class="form-text">Par défaut = montant du crédit (modifiable)</div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">10. Monnaie (débit)</label>
+                    <select name="currency_debit" id="currency_debit" class="form-select">
+                        <option value="MGA" selected>MGA</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+
+                <!-- 11 & 12. Pièce jointe -->
+                <div class="col-md-6">
+                    <label class="form-label">11. Pièce jointe</label>
+                    <input type="file" name="attachments" id="attachments" class="form-control" multiple
+                           accept=".jpg,.jpeg,.png,.gif,.pdf,.webp" onchange="previewFiles()">
+                    <div class="form-text">Photos ou PDF de la pièce justificative</div>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">12. Aperçu de la pièce jointe</label>
+                    <div id="preview" class="border rounded p-2 bg-light" style="min-height: 80px;">
+                        <span class="text-muted small">Aucun fichier sélectionné</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-lg"></i> Enregistrer l'écriture
+        </button>
+        <a href="{{ url_for('journal.list_entries') }}" class="btn btn-outline-secondary btn-lg">Annuler</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Affichage auto description compte
+document.getElementById('credit_account').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    document.getElementById('credit_desc').textContent = opt.dataset.name || '—';
+});
+document.getElementById('debit_account').addEventListener('change', function() {
+    const opt = this.options[this.selectedIndex];
+    document.getElementById('debit_desc').textContent = opt.dataset.name || '—';
+});
+
+// Montant débit = montant crédit par défaut
+document.getElementById('amount').addEventListener('input', function() {
+    document.getElementById('amount_debit').value = this.value;
+});
+document.getElementById('currency').addEventListener('change', function() {
+    document.getElementById('currency_debit').value = this.value;
+});
+
+// Aperçu pièces jointes
+function previewFiles() {
+    const input = document.getElementById('attachments');
+    const preview = document.getElementById('preview');
+    preview.innerHTML = '';
+    if (!input.files.length) {
+        preview.innerHTML = '<span class="text-muted small">Aucun fichier sélectionné</span>';
+        return;
+    }
+    for (const file of input.files) {
+        if (file.type.startsWith('image/')) {
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(file);
+            img.style.maxHeight = '100px';
+            img.style.marginRight = '8px';
+            img.className = 'rounded';
+            preview.appendChild(img);
+        } else {
+            const span = document.createElement('span');
+            span.className = 'badge bg-secondary me-1';
+            span.textContent = file.name;
+            preview.appendChild(span);
+        }
+    }
+}
+</script>
+{% endblock %}

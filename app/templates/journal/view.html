@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Détails de l'écriture – Le Fourmi{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="page-title mb-0">
+        <i class="bi bi-journal-text"></i> Détails de l'écriture
+        <code class="ms-2">{{ entry.entry_code }}</code>
+    </h2>
+    <a href="{{ url_for('journal.list_entries') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Retour au Brouillard
+    </a>
+</div>
+
+{% set credit_line = entry.lines|selectattr('side', 'equalto', 'credit')|list|first %}
+{% set debit_line = entry.lines|selectattr('side', 'equalto', 'debit')|list|first %}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Informations de l'écriture</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Clé primaire</dt>
+                    <dd class="col-sm-8"><code>{{ entry.entry_code }}</code></dd>
+                    
+                    <dt class="col-sm-4">Opérateur</dt>
+                    <dd class="col-sm-8">
+                        {% if entry.created_by %}
+                            {% set role_labels = {
+                                'admin': 'Administrateur',
+                                'comptable': 'Opérateur',
+                                'responsable_site': 'Responsable du site',
+                                'lecteur': 'Lecteur'
+                            } %}
+                            {{ role_labels.get(entry.created_by.role, entry.created_by.role) }} – {{ entry.created_by.id }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Date</dt>
+                    <dd class="col-sm-8">{{ entry.entry_date.strftime('%d/%m/%y') }}</dd>
+                    
+                    <dt class="col-sm-4">Code de crédit</dt>
+                    <dd class="col-sm-8">
+                        {% if credit_line %}
+                        <code class="code-fmt">{{ credit_line.account.code|format_code }}</code> – {{ credit_line.account.name }}
+                        {% else %}—{% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Montant (crédit)</dt>
+                    <dd class="col-sm-8">
+                        {% if credit_line %}
+                            {% if credit_line.amount_mga %}{{ '{:,.0f}'.format(credit_line.amount_mga).replace(',', ' ') }} MGA
+                            {% elif credit_line.amount_usd %}{{ '{:,.2f}'.format(credit_line.amount_usd) }} USD
+                            {% elif credit_line.amount_eur %}{{ '{:,.2f}'.format(credit_line.amount_eur) }} EUR
+                            {% else %}0{% endif %}
+                        {% else %}—{% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Description</dt>
+                    <dd class="col-sm-8">{{ entry.description }}</dd>
+                    
+                    <dt class="col-sm-4">Code de débit</dt>
+                    <dd class="col-sm-8">
+                        {% if debit_line %}
+                        <code class="code-fmt">{{ debit_line.account.code|format_code }}</code> – {{ debit_line.account.name }}
+                        {% else %}—{% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Montant (débit)</dt>
+                    <dd class="col-sm-8">
+                        {% if debit_line %}
+                            {% if debit_line.amount_mga %}{{ '{:,.0f}'.format(debit_line.amount_mga).replace(',', ' ') }} MGA
+                            {% elif debit_line.amount_usd %}{{ '{:,.2f}'.format(debit_line.amount_usd) }} USD
+                            {% elif debit_line.amount_eur %}{{ '{:,.2f}'.format(debit_line.amount_eur) }} EUR
+                            {% else %}0{% endif %}
+                        {% else %}—{% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Saisi par</dt>
+                    <dd class="col-sm-8">{{ entry.created_by.full_name if entry.created_by else '—' }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        {% if entry.attachments %}
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-paperclip"></i> Pièce(s) jointe(s) ({{ entry.attachments|length }})
+            </div>
+            <div class="card-body">
+                {% for att in entry.attachments %}
+                <div class="mb-3 text-center">
+                    {% if att.file_type and att.file_type.startswith('image/') %}
+                        <img src="{{ url_for('static', filename='uploads/' + att.stored_filename) }}"
+                             class="img-fluid rounded mb-2" style="max-height: 200px;" alt="{{ att.original_filename }}">
+                    {% else %}
+                        <i class="bi bi-file-earmark-pdf" style="font-size: 3rem;"></i>
+                    {% endif %}
+                    <div class="small text-truncate">{{ att.original_filename }}</div>
+                    <a href="{{ url_for('journal.download_attachment', att_id=att.id) }}" class="btn btn-sm btn-outline-dark mt-1">
+                        <i class="bi bi-download"></i> Télécharger
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-muted text-center">
+                <i class="bi bi-image" style="font-size: 2rem;"></i>
+                <p class="mb-0 mt-2">Aucune pièce jointe</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

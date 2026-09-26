@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord - RRM Antsirabe{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-speedometer2"></i> Tableau de bord</h2>
+
+{% if current_user.is_admin() and total_entries == 0 %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center">
+    <div>
+        <strong>Base de données vide.</strong>
+        Cliquez sur le bouton pour charger les écritures du Brouillard et le budget de démonstration.
+    </div>
+    <form method="POST" action="{{ url_for('main.import_demo_data') }}" class="ms-3">
+        <button type="submit" class="btn btn-warning">
+            <i class="bi bi-download"></i> Importer les données de démonstration
+        </button>
+    </form>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Écritures</h6>
+                        <h3>{{ total_entries }}</h3>
+                    </div>
+                    <i class="bi bi-journal-text text-primary" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Comptes actifs</h6>
+                        <h3>{{ total_accounts }}</h3>
+                    </div>
+                    <i class="bi bi-diagram-3 text-success" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Utilisateurs</h6>
+                        <h3>{{ total_users }}</h3>
+                    </div>
+                    <i class="bi bi-people text-info" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between">
+                    <div>
+                        <h6 class="text-muted">Période en cours</h6>
+                        <h6 class="mt-2">
+                            {% if current_period %}
+                                {{ current_period.start_date.strftime('%d/%m/%Y') }} → {{ current_period.end_date.strftime('%d/%m/%Y') }}
+                            {% else %}
+                                Aucune
+                            {% endif %}
+                        </h6>
+                    </div>
+                    <i class="bi bi-calendar-range text-warning" style="font-size: 2rem;"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history"></i> Dernières écritures</span>
+        <a href="{{ url_for('journal.new_entry') }}" class="btn btn-sm btn-primary">
+            <i class="bi bi-plus-lg"></i> Nouvelle écriture
+        </a>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Opérateur</th>
+                    <th>Statut</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in recent_entries %}
+                <tr>
+                    <td><code>{{ e.entry_code }}</code></td>
+                    <td>{{ e.entry_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ e.description[:60] }}{% if e.description|length > 60 %}…{% endif %}</td>
+                    <td>{{ e.operator.code if e.operator else '-' }}</td>
+                    <td>
+                        {% if e.status == 'posted' %}
+                            <span class="badge bg-success">Validée</span>
+                        {% elif e.status == 'draft' %}
+                            <span class="badge bg-warning text-dark">Brouillon</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ e.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('journal.view_entry', entry_id=e.id) }}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="text-center text-muted py-4">Aucune écriture pour le moment.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

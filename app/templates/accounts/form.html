@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}{% if account %}Modifier le compte{% else %}Nouveau compte{% endif %} – Le Fourmi{% endblock %}
+
+{% block content %}
+<h2 class="page-title mb-4">
+    <i class="bi bi-diagram-3"></i>
+    {% if account %}Modifier le compte{% else %}Nouveau compte{% endif %}
+    {% if parent %}
+        <small class="text-muted fs-6">— sous-compte de <code>{{ parent.code }}</code> {{ parent.name }}</small>
+    {% endif %}
+</h2>
+
+<form method="POST">
+    <div class="card mb-3" style="max-width: 560px;">
+        <div class="card-body">
+            <div class="mb-3">
+                <label class="form-label">Code *</label>
+                <input type="text" name="code" class="form-control" required
+                       value="{{ account.code if account else (parent.code if parent else '') }}"
+                       {% if account %}readonly{% endif %}
+                       placeholder="ex. 10201006">
+                <div class="form-text">Sans espaces ni tirets (ex. 10201001)</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Intitulé *</label>
+                <input type="text" name="name" class="form-control" required
+                       value="{{ account.name if account else '' }}"
+                       placeholder="Ex. : Caisse MGA Benono">
+            </div>
+            {% if not account %}
+            <div class="mb-3">
+                <label class="form-label">Compte parent</label>
+                <select name="parent_id" class="form-select">
+                    <option value="">— Aucun (niveau racine) —</option>
+                    {% for a in all_accounts %}
+                    <option value="{{ a.id }}" {% if parent and parent.id == a.id %}selected{% endif %}>
+                        {{ a.code }} – {{ a.name[:40] }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endif %}
+            <div class="mb-3">
+                <label class="form-label">Classe</label>
+                <select name="account_class" class="form-select">
+                    <option value="finances" {% if account and account.account_class == 'finances' %}selected{% endif %}>Finances</option>
+                    <option value="fonctionnement" {% if account and account.account_class == 'fonctionnement' %}selected{% endif %}>Fonctionnement</option>
+                </select>
+            </div>
+            {% if account %}
+            <div class="form-check mb-0">
+                <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                       {% if account.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="is_active">Compte actif</label>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-lg"></i> Enregistrer
+        </button>
+        <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary btn-lg">Annuler</a>
+    </div>
+</form>
+{% endblock %}

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}{% if budget %}Modifier le budget{% else %}Nouveau budget{% endif %} – Le Fourmi{% endblock %}
+
+{% block content %}
+<h2 class="page-title mb-4">
+    <i class="bi bi-clipboard-plus"></i>
+    {% if budget %}Modifier le budget{% else %}Nouveau budget{% endif %}
+</h2>
+
+<form method="POST" id="budget-form">
+    <div class="card mb-3">
+        <div class="card-header bg-dark text-white">En-tête</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Code *</label>
+                    <input type="text" name="code" class="form-control" required
+                           value="{{ budget.code if budget else '' }}"
+                           {% if budget %}readonly{% endif %}
+                           placeholder="ex. BudFoTsi09_01">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Titre / Nom *</label>
+                    <input type="text" name="name" class="form-control" required
+                           value="{{ budget.name if budget else '' }}"
+                           placeholder="Budget de fonctionnement…">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Début (jj/mm/aa)</label>
+                    <input type="text" name="start_date" class="form-control" placeholder="01/09/26"
+                           value="{{ budget.start_date.strftime('%d/%m/%y') if budget and budget.start_date else '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Fin (jj/mm/aa)</label>
+                    <input type="text" name="end_date" class="form-control" placeholder="30/09/26"
+                           value="{{ budget.end_date.strftime('%d/%m/%y') if budget and budget.end_date else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Centre de coût</label>
+                    <select name="cost_center_id" class="form-select">
+                        <option value="">— Aucun —</option>
+                        {% for cc in cost_centers %}
+                        <option value="{{ cc.id }}" {% if budget and budget.cost_center_id == cc.id %}selected{% endif %}>
+                            {{ cc.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <span>Lignes du budget</span>
+            <button type="button" class="btn btn-sm btn-light" onclick="addLine()">
+                <i class="bi bi-plus"></i> Ajouter une ligne
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0" id="lines-table">
+                    <thead>
+                        <tr>
+                            <th>Catégorie</th>
+                            <th>Description</th>
+                            <th>Qté</th>
+                            <th>Unité</th>
+                            <th>Occ.</th>
+                            <th>Unité occ.</th>
+                            <th>Coût unit. MGA</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="lines-body">
+                        {% if lines %}
+                            {% for l in lines %}
+                            <tr>
+                                <td><input type="text" name="line_category" class="form-control form-control-sm" value="{{ l.category or '' }}"></td>
+                                <td><input type="text" name="line_description" class="form-control form-control-sm" value="{{ l.description }}" required></td>
+                                <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm" value="{{ l.quantity }}"></td>
+                                <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" value="{{ l.quantity_unit or '' }}" placeholder="forfait"></td>
+                                <td><input type="number" step="0.01" name="line_occurrence" class="form-control form-control-sm" value="{{ l.occurrence }}"></td>
+                                <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" value="{{ l.occurrence_unit or '' }}" placeholder="mois"></td>
+                                <td><input type="number" step="0.01" name="line_unit_cost" class="form-control form-control-sm" value="{{ l.unit_cost_mga }}"></td>
+                                <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()">×</button></td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td><input type="text" name="line_category" class="form-control form-control-sm"></td>
+                                <td><input type="text" name="line_description" class="form-control form-control-sm" required></td>
+                                <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm" value="1"></td>
+                                <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" placeholder="forfait"></td>
+                                <td><input type="number" step="0.01" name="line_occurrence" class="form-control form-control-sm" value="1"></td>
+                                <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" placeholder="mois"></td>
+                                <td><input type="number" step="0.01" name="line_unit_cost" class="form-control form-control-sm" value="0"></td>
+                                <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()">×</button></td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-lg"></i> Enregistrer
+        </button>
+        <a href="{{ url_for('budgets.list_budgets') }}" class="btn btn-outline-secondary btn-lg">Annuler</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addLine() {
+    const tbody = document.getElementById('lines-body');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+        <td><input type="text" name="line_category" class="form-control form-control-sm"></td>
+        <td><input type="text" name="line_description" class="form-control form-control-sm" required></td>
+        <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm" value="1"></td>
+        <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" placeholder="forfait"></td>
+        <td><input type="number" step="0.01" name="line_occurrence" class="form-control form-control-sm" value="1"></td>
+        <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" placeholder="mois"></td>
+        <td><input type="number" step="0.01" name="line_unit_cost" class="form-control form-control-sm" value="0"></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger" onclick="this.closest('tr').remove()">×</button></td>
+    `;
+    tbody.appendChild(tr);
+}
+</script>
+{% endblock %}

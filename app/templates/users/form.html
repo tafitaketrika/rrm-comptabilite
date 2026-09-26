@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}{% if user %}Modifier l'utilisateur{% else %}Créer un nouvel utilisateur{% endif %} – Le Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+.perm-tree { max-height: 360px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 0.5rem; background: #fafafa; }
+.perm-node { margin: 0; }
+.perm-row { display: flex; align-items: center; gap: 0.35rem; padding: 0.2rem 0; font-size: 0.85rem; }
+.perm-toggle { cursor: pointer; width: 18px; text-align: center; color: #666; flex-shrink: 0; }
+.perm-toggle.hidden { visibility: hidden; }
+.perm-children { display: none; padding-left: 1.1rem; }
+.perm-children.open { display: block; }
+.perm-row code { font-size: 0.8rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="page-title mb-4">
+    <i class="bi bi-person-{% if user %}gear{% else %}plus{% endif %}"></i>
+    {% if user %}Modifier l'utilisateur{% else %}Créer un nouvel utilisateur{% endif %}
+</h2>
+
+<form method="POST">
+    <div class="row g-4">
+        <div class="col-md-5">
+            <div class="card">
+                <div class="card-header bg-dark text-white">Informations</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">1. Nom complet *</label>
+                        <input type="text" name="full_name" class="form-control" required
+                               value="{{ user.full_name if user else '' }}"
+                               placeholder="Ex. : Giorgio">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">2. Identifiant *</label>
+                        <input type="text" name="username" class="form-control" required
+                               value="{{ user.username if user else '' }}"
+                               {% if user %}readonly{% endif %}
+                               placeholder="Ex. : gio">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">3. Mot de passe {% if not user %}*{% else %}(laisser vide pour ne pas changer){% endif %}</label>
+                        <input type="password" name="password" class="form-control" {% if not user %}required{% endif %}>
+                    </div>
+                    {% if user %}
+                    <div class="form-check mb-0">
+                        <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                               {% if user.is_active %}checked{% endif %}>
+                        <label class="form-check-label" for="is_active">Compte actif</label>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7">
+            <div class="card mb-3">
+                <div class="card-header bg-dark text-white">4. Accès – Modules de gestion</div>
+                <div class="card-body">
+                    <p class="text-muted small mb-2">Cochez les modules autorisés pour cet utilisateur.</p>
+                    <div class="row">
+                        {% for code, label in modules %}
+                        <div class="col-6">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" name="module_{{ code }}" id="mod_{{ code }}"
+                                       {% if not user or (selected_modules is defined and code in selected_modules) or (user and user.is_admin()) %}checked{% endif %}>
+                                <label class="form-check-label" for="mod_{{ code }}">{{ label }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <span>Accès – Plan comptable interne</span>
+                    <button type="button" class="btn btn-sm btn-outline-light py-0" id="expandAllBtn">Tout ouvrir / fermer</button>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-2">
+                        Cochez un compte parent → tous ses sous-comptes sont cochés automatiquement.
+                        Si aucun n’est coché → accès à tous les comptes.
+                    </p>
+                    <div class="perm-tree" id="permTree">
+                        {% macro render_perm(acc, depth=0) %}
+                        {% set kids = acc.children|selectattr('is_active')|list|sort(attribute='code') if acc.children else [] %}
+                        <div class="perm-node" data-id="{{ acc.id }}" data-level="{{ acc.level }}">
+                            <div class="perm-row">
+                                {% if kids %}
+                                <span class="perm-toggle" data-open="0"><i class="bi bi-chevron-right"></i></span>
+                                {% else %}
+                                <span class="perm-toggle hidden"><i class="bi bi-chevron-right"></i></span>
+                                {% endif %}
+                                <input type="checkbox" class="form-check-input perm-check"
+                                       name="account_{{ acc.id }}" id="acc_{{ acc.id }}"
+                                       data-id="{{ acc.id }}"
+                                       {% if selected_accounts is defined and acc.id in selected_accounts %}checked{% endif %}>
+                                <label for="acc_{{ acc.id }}" class="mb-0">
+                                    <code>{{ acc.code }}</code> {{ acc.name[:40] }}{% if acc.name|length > 40 %}…{% endif %}
+                                </label>
+                            </div>
+                            {% if kids %}
+                            <div class="perm-children">
+                                {% for child in kids %}
+                                    {{ render_perm(child, depth + 1) }}
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endmacro %}
+
+                        {% for root in accounts if root.parent_id is none and root.is_active %}
+                            {{ render_perm(root) }}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mt-4 d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-lg"></i> Enregistrer
+        </button>
+        <a href="{{ url_for('users.list_users') }}" class="btn btn-outline-secondary btn-lg">Annuler</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const tree = document.getElementById('permTree');
+    if (!tree) return;
+
+    // Collapse / expand
+    tree.querySelectorAll('.perm-toggle:not(.hidden)').forEach(tog => {
+        tog.addEventListener('click', function(e) {
+            e.preventDefault();
+            const children = this.closest('.perm-node').querySelector(':scope > .perm-children');
+            if (!children) return;
+            const open = this.dataset.open === '1';
+            if (open) {
+                children.classList.remove('open');
+                this.dataset.open = '0';
+                this.innerHTML = '<i class="bi bi-chevron-right"></i>';
+            } else {
+                children.classList.add('open');
+                this.dataset.open = '1';
+                this.innerHTML = '<i class="bi bi-chevron-down"></i>';
+            }
+        });
+    });
+
+    // Tout ouvrir / fermer
+    let allOpen = false;
+    document.getElementById('expandAllBtn')?.addEventListener('click', function() {
+        allOpen = !allOpen;
+        tree.querySelectorAll('.perm-toggle:not(.hidden)').forEach(tog => {
+            const children = tog.closest('.perm-node').querySelector(':scope > .perm-children');
+            if (!children) return;
+            if (allOpen) {
+                children.classList.add('open');
+                tog.dataset.open = '1';
+                tog.innerHTML = '<i class="bi bi-chevron-down"></i>';
+            } else {
+                children.classList.remove('open');
+                tog.dataset.open = '0';
+                tog.innerHTML = '<i class="bi bi-chevron-right"></i>';
+            }
+        });
+    });
+
+    // Cascade parent → enfants
+    tree.querySelectorAll('.perm-check').forEach(cb => {
+        cb.addEventListener('change', function() {
+            const node = this.closest('.perm-node');
+            const childChecks = node.querySelectorAll(':scope .perm-children .perm-check');
+            childChecks.forEach(c => { c.checked = this.checked; });
+            // Si on décoche un enfant, décocher les parents partiels n'est pas forcé
+            // Si on coche un enfant, on peut remonter pour cocher les parents si tous les frères sont cochés
+            updateParents(node);
+        });
+    });
+
+    function updateParents(node) {
+        const parentNode = node.parentElement?.closest('.perm-node');
+        if (!parentNode) return;
+        const parentCb = parentNode.querySelector(':scope > .perm-row .perm-check');
+        const siblings = parentNode.querySelectorAll(':scope > .perm-children > .perm-node > .perm-row .perm-check');
+        if (!parentCb || !siblings.length) return;
+        const allChecked = Array.from(siblings).every(c => c.checked);
+        const someChecked = Array.from(siblings).some(c => c.checked);
+        parentCb.checked = allChecked;
+        parentCb.indeterminate = someChecked && !allChecked;
+        updateParents(parentNode);
+    }
+
+    // Ouvrir le premier niveau par défaut
+    tree.querySelectorAll(':scope > .perm-node > .perm-row .perm-toggle:not(.hidden)').forEach(tog => {
+        tog.click();
+    });
+})();
+</script>
+{% endblock %}

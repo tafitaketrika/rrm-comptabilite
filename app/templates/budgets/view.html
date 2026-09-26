@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}{{ budget.code }} - Budget{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="page-title mb-0"><i class="bi bi-clipboard-data"></i> {{ budget.name }}</h2>
+    <div class="d-flex gap-2">
+        {% if can_edit %}
+        <a href="{{ url_for('budgets.edit_budget', budget_id=budget.id) }}" class="btn btn-primary">
+            <i class="bi bi-pencil"></i> Modifier
+        </a>
+        {% endif %}
+        <a href="{{ url_for('budgets.list_budgets') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Retour
+        </a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Code</h6>
+                <h5><code>{{ budget.code }}</code></h5>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Période</h6>
+                <h6>
+                    {% if budget.start_date and budget.end_date %}
+                        {{ budget.start_date.strftime('%d/%m/%y') }} → {{ budget.end_date.strftime('%d/%m/%y') }}
+                    {% else %}
+                        —
+                    {% endif %}
+                </h6>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Centre de coût</h6>
+                <h6>{{ budget.cost_center.name if budget.cost_center else '—' }}</h6>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="text-muted">Total MGA (prévu)</h6>
+                <h5>{{ '{:,.0f}'.format(budget.total_mga or 0) }}</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-primary text-white">
+        <i class="bi bi-list-ul"></i> Dépenses ordinaires
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Catégorie</th>
+                    <th>Description</th>
+                    <th class="text-end">Qté</th>
+                    <th>Unité</th>
+                    <th class="text-end">Occ.</th>
+                    <th>Unité occ.</th>
+                    <th class="text-end">Coût unit. MGA</th>
+                    <th class="text-end">Total MGA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in ordinary %}
+                <tr>
+                    <td>{{ l.category or '—' }}</td>
+                    <td>{{ l.description }}</td>
+                    <td class="text-end">{{ l.quantity }}</td>
+                    <td>{{ l.quantity_unit or '' }}</td>
+                    <td class="text-end">{{ l.occurrence }}</td>
+                    <td>{{ l.occurrence_unit or '' }}</td>
+                    <td class="text-end">{{ '{:,.0f}'.format(l.unit_cost_mga or 0) }}</td>
+                    <td class="text-end">{{ '{:,.0f}'.format(l.total_cost_mga or 0) }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center text-muted">Aucune ligne</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header bg-warning">
+        <i class="bi bi-exclamation-triangle"></i> Dépenses extraordinaires / Avances / Imprévus
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Catégorie</th>
+                    <th>Description</th>
+                    <th class="text-end">Qté</th>
+                    <th>Unité</th>
+                    <th class="text-end">Occ.</th>
+                    <th>Unité occ.</th>
+                    <th class="text-end">Coût unit. MGA</th>
+                    <th class="text-end">Total MGA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for l in extraordinary %}
+                <tr>
+                    <td>{{ l.category or '—' }}</td>
+                    <td>{{ l.description }}</td>
+                    <td class="text-end">{{ l.quantity }}</td>
+                    <td>{{ l.quantity_unit or '' }}</td>
+                    <td class="text-end">{{ l.occurrence }}</td>
+                    <td>{{ l.occurrence_unit or '' }}</td>
+                    <td class="text-end">{{ '{:,.0f}'.format(l.unit_cost_mga or 0) }}</td>
+                    <td class="text-end">{{ '{:,.0f}'.format(l.total_cost_mga or 0) }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center text-muted">Aucune ligne</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

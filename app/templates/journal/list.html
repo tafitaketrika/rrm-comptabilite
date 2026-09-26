@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}Brouillard synthétique – Le Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+    .fmt-code { font-family: 'Courier New', monospace; font-weight: 600; color: #111; white-space: nowrap; cursor: default; }
+    .amt { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .desc-cell { max-width: 180px; font-size: 0.88rem; }
+    /* Important : ne pas couper les popups */
+    .table-desktop, .table-desktop .card-body, .table-responsive, .table-desktop table {
+        overflow: visible !important;
+    }
+    .pj-wrap { position: relative; display: inline-block; }
+    .pj-badge { cursor: pointer; }
+    .pj-preview {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.22);
+        padding: 10px;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 10px;
+        align-items: center;
+    }
+    .pj-preview.show { display: flex !important; }
+    .pj-preview img {
+        width: 150px;
+        height: 120px;
+        object-fit: contain;
+        border-radius: 4px;
+        border: 1px solid #eee;
+        flex-shrink: 0;
+        background: #fafafa;
+    }
+    .pj-preview .pj-file {
+        width: 120px;
+        height: 100px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #f5f5f5;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        text-align: center;
+        padding: 6px;
+        text-decoration: none;
+        color: #333;
+        flex-shrink: 0;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .acc-tip {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        background: #111;
+        color: #fff;
+        font-size: 0.85rem;
+        padding: 6px 12px;
+        border-radius: 6px;
+        max-width: 420px;
+        white-space: normal;
+        line-height: 1.35;
+        box-shadow: 0 4px 16px rgba(0,0,0,.25);
+        pointer-events: none;
+    }
+    .acc-tip.show { display: block; }
+    .entry-card { display: none; }
+    @media (max-width: 767.98px) {
+        .table-desktop { display: none !important; }
+        .entry-card { display: block; }
+        .entry-card .card { margin-bottom: 0.75rem; }
+        .entry-card .row-line { font-size: 0.85rem; }
+        .entry-card .label { color: #888; font-size: 0.75rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 mb-md-4 flex-wrap gap-2">
+    <h2 class="page-title mb-0"><i class="bi bi-journal-text"></i> Brouillard synthétique</h2>
+    {% if current_user.can_edit_journal() %}
+    <a href="{{ url_for('journal.new_entry') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Nouvelle écriture</span><span class="d-sm-none">Nouveau</span>
+    </a>
+    {% endif %}
+</div>
+
+{# ===== Desktop table ===== #}
+<div class="card table-desktop">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Compte crédit</th>
+                        <th class="text-end">Montant</th>
+                        <th>Monnaie</th>
+                        <th>Description</th>
+                        <th>Compte débit</th>
+                        <th class="text-end">Montant</th>
+                        <th>Monnaie</th>
+                        <th>PJ</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries.items %}
+                    {% set credit_line = e.lines|selectattr('side', 'equalto', 'credit')|list|first %}
+                    {% set debit_line = e.lines|selectattr('side', 'equalto', 'debit')|list|first %}
+                    <tr>
+                        <td class="text-nowrap">{{ e.entry_date.strftime('%d/%m/%y') }}</td>
+                        <td>
+                            {% if credit_line %}
+                            <span class="fmt-code acc-hover" data-name="{{ credit_line.account.name }}">{{ credit_line.account.code|format_code }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-end amt">
+                            {% if credit_line %}
+                                {% if credit_line.amount_mga %}{{ '{:,.0f}'.format(credit_line.amount_mga).replace(',', ' ') }}
+                                {% elif credit_line.amount_usd %}{{ '{:,.2f}'.format(credit_line.amount_usd) }}
+                                {% elif credit_line.amount_eur %}{{ '{:,.2f}'.format(credit_line.amount_eur) }}
+                                {% else %}0{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if credit_line %}
+                                {% if credit_line.amount_mga %}MGA{% elif credit_line.amount_usd %}USD{% elif credit_line.amount_eur %}EUR{% else %}—{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="desc-cell" title="{{ e.description }}">{{ e.description }}</td>
+                        <td>
+                            {% if debit_line %}
+                            <span class="fmt-code acc-hover" data-name="{{ debit_line.account.name }}">{{ debit_line.account.code|format_code }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-end amt">
+                            {% if debit_line %}
+                                {% if debit_line.amount_mga %}{{ '{:,.0f}'.format(debit_line.amount_mga).replace(',', ' ') }}
+                                {% elif debit_line.amount_usd %}{{ '{:,.2f}'.format(debit_line.amount_usd) }}
+                                {% elif debit_line.amount_eur %}{{ '{:,.2f}'.format(debit_line.amount_eur) }}
+                                {% else %}0{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if debit_line %}
+                                {% if debit_line.amount_mga %}MGA{% elif debit_line.amount_usd %}USD{% elif debit_line.amount_eur %}EUR{% else %}—{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td>
+                            {% if e.attachments %}
+                            <div class="pj-wrap">
+                                <span class="badge bg-dark pj-badge">{{ e.attachments|length }}</span>
+                                <div class="pj-preview-content" hidden>
+                                    {% for att in e.attachments %}
+                                        {% set url = url_for('static', filename='uploads/' + att.stored_filename) %}
+                                        {% if att.file_type and att.file_type.startswith('image') %}
+                                            <a href="{{ url }}" target="_blank"><img src="{{ url }}" alt="{{ att.original_filename }}"></a>
+                                        {% else %}
+                                            <a class="pj-file" href="{{ url }}" target="_blank">
+                                                <i class="bi bi-file-earmark" style="font-size:1.5rem"></i>
+                                                {{ att.original_filename }}
+                                            </a>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ url_for('journal.view_entry', entry_id=e.id) }}" class="btn btn-sm btn-outline-primary" title="Voir">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="text-center text-muted py-4">Aucune écriture.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# ===== Mobile cards ===== #}
+<div class="entry-card">
+    {% for e in entries.items %}
+    {% set credit_line = e.lines|selectattr('side', 'equalto', 'credit')|list|first %}
+    {% set debit_line = e.lines|selectattr('side', 'equalto', 'debit')|list|first %}
+    <div class="card">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <strong>{{ e.entry_date.strftime('%d/%m/%y') }}</strong>
+                <a href="{{ url_for('journal.view_entry', entry_id=e.id) }}" class="btn btn-sm btn-outline-primary py-0">
+                    <i class="bi bi-eye"></i>
+                </a>
+            </div>
+            <div class="text-muted small mb-2">{{ e.description }}</div>
+            <div class="row-line mb-1">
+                <span class="label">Crédit</span>
+                {% if credit_line %}
+                <span class="fmt-code">{{ credit_line.account.code|format_code }}</span>
+                <span class="text-muted small">{{ credit_line.account.name[:25] }}</span>
+                —
+                <strong class="amt">
+                    {% if credit_line.amount_mga %}{{ '{:,.0f}'.format(credit_line.amount_mga).replace(',', ' ') }} MGA
+                    {% elif credit_line.amount_usd %}{{ '{:,.2f}'.format(credit_line.amount_usd) }} USD
+                    {% elif credit_line.amount_eur %}{{ '{:,.2f}'.format(credit_line.amount_eur) }} EUR
+                    {% endif %}
+                </strong>
+                {% endif %}
+            </div>
+            <div class="row-line">
+                <span class="label">Débit</span>
+                {% if debit_line %}
+                <span class="fmt-code">{{ debit_line.account.code|format_code }}</span>
+                <span class="text-muted small">{{ debit_line.account.name[:25] }}</span>
+                —
+                <strong class="amt">
+                    {% if debit_line.amount_mga %}{{ '{:,.0f}'.format(debit_line.amount_mga).replace(',', ' ') }} MGA
+                    {% elif debit_line.amount_usd %}{{ '{:,.2f}'.format(debit_line.amount_usd) }} USD
+                    {% elif debit_line.amount_eur %}{{ '{:,.2f}'.format(debit_line.amount_eur) }} EUR
+                    {% endif %}
+                </strong>
+                {% endif %}
+            </div>
+            {% if e.attachments %}
+            <div class="mt-1">
+                <div class="pj-wrap">
+                    <span class="badge bg-dark pj-badge">{{ e.attachments|length }} PJ</span>
+                    <div class="pj-preview">
+                        {% for att in e.attachments %}
+                            {% set url = url_for('static', filename='uploads/' + att.stored_filename) %}
+                            {% if att.file_type and att.file_type.startswith('image') %}
+                                <a href="{{ url }}" target="_blank"><img src="{{ url }}" alt="{{ att.original_filename }}"></a>
+                            {% else %}
+                                <a class="pj-file" href="{{ url }}" target="_blank">
+                                    <i class="bi bi-file-earmark" style="font-size:1.5rem"></i>
+                                    {{ att.original_filename[:18] }}
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-4">Aucune écriture.</div>
+    {% endfor %}
+</div>
+
+{% if entries.pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center mb-0">
+        {% for p in entries.iter_pages() %}
+            {% if p %}
+            <li class="page-item {% if p == entries.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('journal.list_entries', page=p) }}">{{ p }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  // Tooltip intitulé compte (texte complet)
+  const tip = document.createElement('div');
+  tip.className = 'acc-tip';
+  document.body.appendChild(tip);
+
+  document.querySelectorAll('.acc-hover').forEach(el => {
+    el.addEventListener('mouseenter', e => {
+      tip.textContent = el.dataset.name || '';
+      tip.classList.add('show');
+      positionNear(el, tip, 8);
+    });
+    el.addEventListener('mousemove', e => positionNear(el, tip, 8));
+    el.addEventListener('mouseleave', () => tip.classList.remove('show'));
+  });
+
+  // Aperçu PJ horizontal, position fixed visible
+  const pjBox = document.createElement('div');
+  pjBox.className = 'pj-preview';
+  document.body.appendChild(pjBox);
+
+  document.querySelectorAll('.pj-wrap').forEach(wrap => {
+    const badge = wrap.querySelector('.pj-badge');
+    const content = wrap.querySelector('.pj-preview-content');
+    if (!badge || !content) return;
+
+    badge.addEventListener('mouseenter', () => {
+      pjBox.innerHTML = content.innerHTML;
+      pjBox.classList.add('show');
+      positionNear(badge, pjBox, 10);
+    });
+    badge.addEventListener('mousemove', () => positionNear(badge, pjBox, 10));
+    badge.addEventListener('mouseleave', () => {
+      setTimeout(() => {
+        if (!pjBox.matches(':hover')) pjBox.classList.remove('show');
+      }, 120);
+    });
+    pjBox.addEventListener('mouseleave', () => pjBox.classList.remove('show'));
+  });
+
+  function positionNear(anchor, box, gap) {
+    const r = anchor.getBoundingClientRect();
+    const bw = box.offsetWidth || 200;
+    const bh = box.offsetHeight || 100;
+    let left = r.right - bw;
+    let top = r.bottom + gap;
+    // rester dans la fenêtre
+    if (left < 8) left = 8;
+    if (left + bw > window.innerWidth - 8) left = window.innerWidth - bw - 8;
+    if (top + bh > window.innerHeight - 8) {
+      top = r.top - bh - gap; // au-dessus si pas de place en bas
+    }
+    if (top < 8) top = 8;
+    box.style.left = left + 'px';
+    box.style.top = top + 'px';
+  }
+})();
+</script>
+{% endblock %}
+
