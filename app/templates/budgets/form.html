@@ -1,0 +1,239 @@
+{% extends "base.html" %}
+{% block title %}{% if budget %}Modifier le budget{% else %}Nouveau budget{% endif %} – La Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+#lines-table input, #lines-table select { font-size: 0.85rem; }
+#lines-table th { white-space: nowrap; font-size: 0.8rem; }
+.line-total { font-weight: 600; min-width: 90px; }
+#grand-total { font-size: 1.15rem; font-weight: 700; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <div>
+        <h2 class="page-title mb-1">
+            <i class="bi bi-clipboard-plus"></i>
+            {% if budget %}Modifier le budget{% else %}Nouveau budget{% endif %}
+        </h2>
+        <div class="text-muted small">
+            Date : {{ budget.created_at.strftime('%d/%m/%y') if budget and budget.created_at else today }}
+            · Opérateur : {{ current_user.full_name }}
+        </div>
+    </div>
+</div>
+
+<form method="POST" id="budget-form">
+    <div class="card mb-3">
+        <div class="card-header bg-dark text-white">En-tête</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Code *</label>
+                    <input type="text" name="code" class="form-control" required
+                           value="{{ budget.code if budget else '' }}"
+                           {% if budget %}readonly{% endif %}
+                           placeholder="ex. BudFoTsi09_01">
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Titre *</label>
+                    <input type="text" name="name" class="form-control" required
+                           value="{{ budget.name if budget else '' }}"
+                           placeholder="Budget de fonctionnement…">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Période du (jj/mm/aa)</label>
+                    <input type="text" name="start_date" class="form-control" placeholder="01/09/26"
+                           value="{{ budget.start_date.strftime('%d/%m/%y') if budget and budget.start_date else '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">au (jj/mm/aa)</label>
+                    <input type="text" name="end_date" class="form-control" placeholder="30/09/26"
+                           value="{{ budget.end_date.strftime('%d/%m/%y') if budget and budget.end_date else '' }}">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label">Monnaie</label>
+                    <select name="currency" class="form-select">
+                        <option value="MGA" selected>MGA</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">À (destinataire)</label>
+                    <select name="assigned_to" class="form-select">
+                        <option value="">— Choisir un opérateur —</option>
+                        {% for op in operators|default([]) %}
+                        <option value="{{ op.id }}">{{ op.code }} – {{ op.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">CC (copie)</label>
+                    <select name="cc_to" class="form-select">
+                        <option value="">— Aucun —</option>
+                        {% for op in operators|default([]) %}
+                        <option value="{{ op.id }}">{{ op.code }} – {{ op.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <span>Lignes du budget</span>
+            <div class="d-flex gap-1">
+                <button type="button" class="btn btn-sm btn-outline-light" onclick="removeLastLine()" title="Retirer une ligne">−</button>
+                <button type="button" class="btn btn-sm btn-light" onclick="addLine()" title="Ajouter une ligne">+</button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle" id="lines-table">
+                    <thead>
+                        <tr>
+                            <th>Compte</th>
+                            <th>Description</th>
+                            <th>Qté</th>
+                            <th>Unité</th>
+                            <th>Occ.</th>
+                            <th>Unité occ.</th>
+                            <th>Monnaie</th>
+                            <th>Coût unit.</th>
+                            <th class="text-end">Total</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="lines-body">
+                        {% if lines %}
+                            {% for l in lines %}
+                            <tr>
+                                <td>
+                                    <select name="line_account_id" class="form-select form-select-sm" style="min-width:140px">
+                                        <option value="">—</option>
+                                        {% for acc in accounts %}
+                                        <option value="{{ acc.id }}" {% if l.account_id == acc.id %}selected{% endif %}>
+                                            {{ acc.code|format_code }} – {{ acc.name[:28] }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><input type="text" name="line_description" class="form-control form-control-sm" value="{{ l.description }}" required></td>
+                                <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm calc-input" value="{{ l.quantity }}" style="width:70px"></td>
+                                <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" value="{{ l.quantity_unit or '' }}" placeholder="forfait" style="width:70px"></td>
+                                <td><input type="number" step="0.01" name="line_occurrence" class="form-control form-control-sm calc-input" value="{{ l.occurrence }}" style="width:70px"></td>
+                                <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" value="{{ l.occurrence_unit or '' }}" placeholder="mois" style="width:60px"></td>
+                                <td>
+                                    <select name="line_currency" class="form-select form-select-sm" style="width:75px">
+                                        <option value="MGA">MGA</option>
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                    </select>
+                                </td>
+                                <td><input type="number" step="1" name="line_unit_cost" class="form-control form-control-sm calc-input" value="{{ l.unit_cost_mga|int if l.unit_cost_mga else '' }}" style="width:100px" placeholder="0"></td>
+                                <td class="text-end line-total">0</td>
+                                <td><button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="this.closest('tr').remove(); recalcAll()">×</button></td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td>
+                                    <select name="line_account_id" class="form-select form-select-sm" style="min-width:140px">
+                                        <option value="">—</option>
+                                        {% for acc in accounts %}
+                                        <option value="{{ acc.id }}">{{ acc.code|format_code }} – {{ acc.name[:28] }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </td>
+                                <td><input type="text" name="line_description" class="form-control form-control-sm" required></td>
+                                <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm calc-input" value="1" style="width:70px"></td>
+                                <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" placeholder="forfait" style="width:70px"></td>
+                                <td><input type="number" step="0.01" name="line_occurrence" class="form-control form-control-sm calc-input" value="1" style="width:70px"></td>
+                                <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" placeholder="mois" style="width:60px"></td>
+                                <td>
+                                    <select name="line_currency" class="form-select form-select-sm" style="width:75px">
+                                        <option value="MGA">MGA</option>
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                    </select>
+                                </td>
+                                <td><input type="number" step="1" name="line_unit_cost" class="form-control form-control-sm calc-input" value="" style="width:100px" placeholder="0"></td>
+                                <td class="text-end line-total">0</td>
+                                <td><button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="this.closest('tr').remove(); recalcAll()">×</button></td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light">
+                            <td colspan="8" class="text-end fw-bold">SOMME TOTAL</td>
+                            <td class="text-end" id="grand-total">0</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-send"></i> Envoyer
+        </button>
+        <a href="{{ url_for('budgets.list_budgets') }}" class="btn btn-outline-secondary btn-lg">Annuler</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const accountOptions = `{% for acc in accounts %}<option value="{{ acc.id }}">{{ acc.code|format_code }} – {{ acc.name[:28] }}</option>{% endfor %}`;
+
+function lineHtml() {
+    return `<tr>
+        <td><select name="line_account_id" class="form-select form-select-sm" style="min-width:140px"><option value="">—</option>${accountOptions}</select></td>
+        <td><input type="text" name="line_description" class="form-control form-control-sm" required></td>
+        <td><input type="number" step="0.01" name="line_quantity" class="form-control form-control-sm calc-input" value="1" style="width:70px"></td>
+        <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" placeholder="forfait" style="width:70px"></td>
+        <td><input type="number" step="0.01" name="line_occurrence" class="form-control form-control-sm calc-input" value="1" style="width:70px"></td>
+        <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" placeholder="mois" style="width:60px"></td>
+        <td><select name="line_currency" class="form-select form-select-sm" style="width:75px"><option value="MGA">MGA</option><option value="USD">USD</option><option value="EUR">EUR</option></select></td>
+        <td><input type="number" step="1" name="line_unit_cost" class="form-control form-control-sm calc-input" value="" style="width:100px" placeholder="0"></td>
+        <td class="text-end line-total">0</td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="this.closest('tr').remove(); recalcAll()">×</button></td>
+    </tr>`;
+}
+function addLine() {
+    document.getElementById('lines-body').insertAdjacentHTML('beforeend', lineHtml());
+    bindCalc();
+}
+function removeLastLine() {
+    const rows = document.querySelectorAll('#lines-body tr');
+    if (rows.length > 1) { rows[rows.length - 1].remove(); recalcAll(); }
+}
+function fmt(n) {
+    return Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+function recalcRow(tr) {
+    const q = parseFloat(tr.querySelector('[name=line_quantity]')?.value) || 0;
+    const o = parseFloat(tr.querySelector('[name=line_occurrence]')?.value) || 0;
+    const c = parseFloat(tr.querySelector('[name=line_unit_cost]')?.value) || 0;
+    const t = q * o * c;
+    const cell = tr.querySelector('.line-total');
+    if (cell) cell.textContent = fmt(t);
+    return t;
+}
+function recalcAll() {
+    let sum = 0;
+    document.querySelectorAll('#lines-body tr').forEach(tr => { sum += recalcRow(tr); });
+    document.getElementById('grand-total').textContent = fmt(sum);
+}
+function bindCalc() {
+    document.querySelectorAll('.calc-input').forEach(el => { el.oninput = recalcAll; });
+}
+bindCalc();
+recalcAll();
+</script>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Détails de l'écriture – La Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+.pj-nav-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; background: rgba(255,255,255,0.95);
+    color: #111; border-radius: 50%; font-size: 1.4rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.carousel-control-prev, .carousel-control-next { width: 15%; opacity: 1; }
+.info-label { color: #555; font-weight: 600; }
+.info-value { color: #111; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="page-title mb-0">
+        <i class="bi bi-journal-text"></i> Détails de l'écriture
+        <span class="ms-2 fw-bold" style="font-size:1rem;color:#111;">{{ entry.entry_code }}</span>
+    </h2>
+    <a href="{{ url_for('journal.list_entries') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Retour au Brouillard
+    </a>
+</div>
+
+{% set credit_line = entry.lines|selectattr('side', 'equalto', 'credit')|list|first %}
+{% set debit_line = entry.lines|selectattr('side', 'equalto', 'debit')|list|first %}
+
+<div class="row g-3 mb-4">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Informations de l'écriture</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 info-label">Saisi par</dt>
+                    <dd class="col-sm-8 info-value">{{ entry.created_by.full_name if entry.created_by else '—' }}</dd>
+<dt class="col-sm-4 info-label">Date</dt>
+                    <dd class="col-sm-8 info-value">{{ entry.entry_date.strftime('%d/%m/%y') }}</dd>
+
+                    <dt class="col-sm-4 info-label">Compte de crédit</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if credit_line %}
+                        {{ credit_line.account.code|format_code }} – {{ credit_line.account.name }}
+                        {% else %}—{% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4 info-label">Montant</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if credit_line %}
+                            {% if credit_line.amount_mga %}{{ '{:,.0f}'.format(credit_line.amount_mga).replace(',', ' ') }} MGA
+                            {% elif credit_line.amount_usd %}{{ '{:,.2f}'.format(credit_line.amount_usd) }} USD
+                            {% elif credit_line.amount_eur %}{{ '{:,.2f}'.format(credit_line.amount_eur) }} EUR
+                            {% else %}0{% endif %}
+                        {% else %}—{% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4 info-label">Description</dt>
+                    <dd class="col-sm-8 info-value">{{ entry.description }}</dd>
+
+                    <dt class="col-sm-4 info-label">Compte de débit</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if debit_line %}
+                        {{ debit_line.account.code|format_code }} – {{ debit_line.account.name }}
+                        {% else %}—{% endif %}
+                    </dd>
+
+                    <dt class="col-sm-4 info-label">Montant</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if debit_line %}
+                            {% if debit_line.amount_mga %}{{ '{:,.0f}'.format(debit_line.amount_mga).replace(',', ' ') }} MGA
+                            {% elif debit_line.amount_usd %}{{ '{:,.2f}'.format(debit_line.amount_usd) }} USD
+                            {% elif debit_line.amount_eur %}{{ '{:,.2f}'.format(debit_line.amount_eur) }} EUR
+                            {% else %}0{% endif %}
+                        {% else %}—{% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        {% if entry.attachments %}
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-paperclip"></i> Pièce(s) jointe(s) ({{ entry.attachments|length }})
+            </div>
+            <div class="card-body p-2">
+                <div id="pjCarousel" class="carousel slide" data-bs-ride="false">
+                    <div class="carousel-inner">
+                        {% for att in entry.attachments %}
+                        <div class="carousel-item {% if loop.first %}active{% endif %}">
+                            <div class="text-center bg-dark rounded p-2" style="min-height: 220px;">
+                                {% if att.file_type and att.file_type.startswith('image/') %}
+                                    <img src="{{ url_for('static', filename='uploads/' + att.stored_filename) }}"
+                                         class="img-fluid rounded" style="max-height: 240px; object-fit: contain;" alt="{{ att.original_filename }}">
+                                {% else %}
+                                    <div class="text-white py-5">
+                                        <i class="bi bi-file-earmark" style="font-size: 3rem;"></i>
+                                        <div class="mt-2">{{ att.original_filename }}</div>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="text-center small mt-2 text-muted">{{ att.original_filename }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if entry.attachments|length > 1 %}
+                    <button class="carousel-control-prev" type="button" data-bs-target="#pjCarousel" data-bs-slide="prev">
+                        <span class="pj-nav-btn"><i class="bi bi-chevron-left"></i></span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#pjCarousel" data-bs-slide="next">
+                        <span class="pj-nav-btn"><i class="bi bi-chevron-right"></i></span>
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="card">
+            <div class="card-body text-muted text-center">
+                <i class="bi bi-image" style="font-size: 2rem;"></i>
+                <p class="mb-0 mt-2">Aucune pièce jointe</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

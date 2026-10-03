@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}{{ budget.code }} – Budget{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="page-title mb-0"><i class="bi bi-clipboard-data"></i> {{ budget.name }}</h2>
+    <div class="d-flex gap-2">
+        {% if can_edit %}
+        <a href="{{ url_for('budgets.edit_budget', budget_id=budget.id) }}" class="btn btn-primary">
+            <i class="bi bi-pencil"></i> Modifier
+        </a>
+        {% endif %}
+        <a href="{{ url_for('budgets.list_budgets') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Retour
+        </a>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h6 class="text-muted mb-1">Code</h6>
+            <h5 class="mb-0"><code>{{ budget.code }}</code></h5>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h6 class="text-muted mb-1">Période</h6>
+            <h6 class="mb-0">
+                {% if budget.start_date and budget.end_date %}
+                    {{ budget.start_date.strftime('%d/%m/%y') }} → {{ budget.end_date.strftime('%d/%m/%y') }}
+                {% else %}—{% endif %}
+            </h6>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h6 class="text-muted mb-1">Monnaie</h6>
+            <h5 class="mb-0">MGA</h5>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card"><div class="card-body">
+            <h6 class="text-muted mb-1">Total (prévu)</h6>
+            <h5 class="mb-0">{{ '{:,.0f}'.format(budget.total_mga or 0).replace(',', ' ') }}</h5>
+        </div></div>
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-list-ul"></i> Lignes du budget</span>
+        {% if budget.created_by %}
+        <span class="small" title="{{ budget.created_by.full_name }}">
+            <i class="bi bi-person-circle"></i> {{ budget.created_by.full_name }}
+        </span>
+        {% endif %}
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Compte</th>
+                    <th>Description</th>
+                    <th class="text-end">Qté</th>
+                    <th>Unité</th>
+                    <th class="text-end">Occ.</th>
+                    <th>Unité occ.</th>
+                    <th>Monnaie</th>
+                    <th class="text-end">Coût unit.</th>
+                    <th class="text-end">Total</th>
+                    <th style="width:36px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(prev=None) %}
+                {% for l in lines %}
+                    {% set chap = l.category or (l.account.name if l.account else None) or '—' %}
+                    {% if chap != ns.prev %}
+                    <tr class="table-light">
+                        <td colspan="10" class="fw-bold small text-uppercase" style="background:#e8e8e8;">
+                            {{ chap if chap != '—' else 'Divers' }}
+                        </td>
+                    </tr>
+                    {% set ns.prev = chap %}
+                    {% endif %}
+                <tr>
+                    <td>
+                        {% if l.account %}
+                        <code title="{{ l.account.name }}">{{ l.account.code|format_code }}</code>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{{ l.description }}</td>
+                    <td class="text-end">{{ l.quantity }}</td>
+                    <td>{{ l.quantity_unit or '—' }}</td>
+                    <td class="text-end">{{ l.occurrence }}</td>
+                    <td>{{ l.occurrence_unit or '—' }}</td>
+                    <td>MGA</td>
+                    <td class="text-end">{{ '{:,.0f}'.format(l.unit_cost_mga or 0).replace(',', ' ') }}</td>
+                    <td class="text-end">{{ '{:,.0f}'.format(l.total_cost_mga or 0).replace(',', ' ') }}</td>
+                    <td class="text-center">
+                        <i class="bi bi-person-circle"
+                           style="font-size:1.1rem;cursor:default;{% if budget.created_by %}color:#333{% else %}color:#ccc{% endif %}"
+                           title="{{ budget.created_by.full_name if budget.created_by else 'Opérateur non renseigné' }}"
+                           data-bs-toggle="tooltip"
+                           data-bs-title="{{ budget.created_by.full_name if budget.created_by else 'Opérateur non renseigné' }}"></i>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="10" class="text-center text-muted py-3">Aucune ligne.</td></tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="table-light fw-bold">
+                    <td colspan="8" class="text-end">SOMME TOTAL</td>
+                    <td class="text-end">{{ '{:,.0f}'.format(budget.total_mga or 0).replace(',', ' ') }}</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

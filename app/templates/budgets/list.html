@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Budgets – La Fourmi{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="page-title mb-0"><i class="bi bi-clipboard-data"></i> Budgets</h2>
+    {% if can_edit %}
+    <a href="{{ url_for('budgets.new_budget') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Nouveau
+    </a>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Nom</th>
+                    <th>Période</th>
+                    <th>Monnaie</th>
+                    <th class="text-end">Total</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in budgets %}
+                <tr>
+                    <td class="text-nowrap">{{ b.created_at.strftime('%d/%m/%y') if b.created_at else '—' }}</td>
+                    <td>{{ b.name }}</td>
+                    <td class="text-nowrap">
+                        {% if b.start_date and b.end_date %}
+                            {{ b.start_date.strftime('%d/%m/%y') }} → {{ b.end_date.strftime('%d/%m/%y') }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>MGA</td>
+                    <td class="text-end text-nowrap">
+                        {{ '{:,.0f}'.format(b.total_mga or 0).replace(',', ' ') }}
+                        {% if b.total_usd and b.total_usd > 0 %}
+                        <br><small class="text-muted">{{ '{:,.2f}'.format(b.total_usd) }} USD</small>
+                        {% endif %}
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <a href="{{ url_for('budgets.view_budget', budget_id=b.id) }}" class="btn btn-sm btn-outline-primary" title="Voir">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        {% if can_edit %}
+                        <a href="{{ url_for('budgets.edit_budget', budget_id=b.id) }}" class="btn btn-sm btn-outline-secondary" title="Modifier">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">Aucun budget.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+{% block title %}{% if account %}Modifier le compte{% else %}Nouveau compte{% endif %} – La Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+.pc-form .form-label { font-weight: 600; color: #111; min-width: 110px; }
+.pc-form .row-level { margin-bottom: 0.85rem; }
+.pc-form input.form-control { height: 38px; }
+.pc-form .code-col { max-width: 200px; }
+.pc-form input.readonly-name { background: #f0f0f0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="page-title mb-4">
+    <i class="bi bi-diagram-3"></i>
+    {% if account %}Modifier le compte{% else %}Nouveau compte{% endif %}
+</h2>
+
+<form method="POST" id="accountForm" class="pc-form">
+    <div class="card mb-3" style="max-width: 760px;">
+        <div class="card-body">
+            <div class="row g-2 align-items-center row-level">
+                <div class="col-auto"><label class="form-label mb-0">Section</label></div>
+                <div class="col-5 col-md-3 code-col">
+                    <input type="text" id="sec_code" class="form-control" placeholder="01" maxlength="10" autocomplete="off">
+                </div>
+                <div class="col">
+                    <input type="text" id="sec_name" class="form-control readonly-name" placeholder="Intitulé section" readonly>
+                </div>
+            </div>
+            <div class="row g-2 align-items-center row-level">
+                <div class="col-auto"><label class="form-label mb-0">Chapitre</label></div>
+                <div class="col-5 col-md-3 code-col">
+                    <input type="text" id="chap_code" class="form-control" placeholder="01 02" maxlength="12" autocomplete="off">
+                </div>
+                <div class="col">
+                    <input type="text" id="chap_name" class="form-control readonly-name" placeholder="Intitulé chapitre" readonly>
+                </div>
+            </div>
+            <div class="row g-2 align-items-center row-level">
+                <div class="col-auto"><label class="form-label mb-0">Paragraphe</label></div>
+                <div class="col-5 col-md-3 code-col">
+                    <input type="text" id="par_code" class="form-control" placeholder="01 02 01" maxlength="16" autocomplete="off">
+                </div>
+                <div class="col">
+                    <input type="text" id="par_name" class="form-control readonly-name" placeholder="Intitulé paragraphe" readonly>
+                </div>
+            </div>
+            <div class="row g-2 align-items-center row-level">
+                <div class="col-auto"><label class="form-label mb-0">Compte</label></div>
+                <div class="col-5 col-md-3 code-col">
+                    <input type="text" name="code" id="cpt_code" class="form-control" required
+                           placeholder="01 02 01 001" maxlength="20" autocomplete="off"
+                           value="{{ account.code if account else '' }}">
+                </div>
+                <div class="col">
+                    <input type="text" name="name" id="cpt_name" class="form-control" required
+                           placeholder="Intitulé du compte" maxlength="200"
+                           value="{{ account.name if account else '' }}">
+                </div>
+            </div>
+            <input type="hidden" name="parent_id" id="parent_id" value="">
+            <input type="hidden" name="account_class" id="account_class" value="finances">
+            {% if account %}
+            <div class="form-check mt-2">
+                <input type="checkbox" name="is_active" class="form-check-input" id="is_active"
+                       {% if account.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="is_active">Compte actif</label>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-lg"></i> Enregistrer
+        </button>
+        <a href="{{ url_for('accounts.list_accounts') }}" class="btn btn-outline-secondary btn-lg">Annuler</a>
+        <button type="button" class="btn btn-outline-dark btn-lg" id="btnConsultPlan">
+            <i class="bi bi-diagram-3"></i> Consulter plan comptable
+        </button>
+    </div>
+</form>
+
+<div class="modal fade" id="planModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Plan Comptable interne</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" id="planModalBody" style="max-height:70vh;"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ACC_LIST = {{ accounts_data|tojson }};
+const ACC_MAP = {};
+ACC_LIST.forEach(function(a) {
+  const dig = String(a.code).replace(/\D/g, '');
+  ACC_MAP[dig] = a;
+  ACC_MAP[a.code] = a;
+  if (dig.length === 8 && dig[0] !== '0') ACC_MAP['0' + dig] = a;
+  if (dig.length === 9 && dig[0] === '0') ACC_MAP[dig.slice(1)] = a;
+});
+
+function digits(s) { return String(s || '').replace(/\D/g, ''); }
+
+function fmt(code) {
+  let d = digits(code);
+  if (!d) return '';
+  if (d.length === 8 && d[0] !== '0') d = '0' + d;
+  else if (d.length % 2 === 1 && d.length < 7) d = '0' + d;
+  if (d.length === 9) return d.slice(0,2)+' '+d.slice(2,4)+' '+d.slice(4,6)+' '+d.slice(6,9);
+  const p = [];
+  for (let i = 0; i < d.length; i += 2) p.push(d.slice(i, i+2));
+  return p.join(' ');
+}
+
+function lookup(code) {
+  const d = digits(code);
+  if (!d) return null;
+  if (ACC_MAP[d]) return ACC_MAP[d];
+  if (d.length === 8 && ACC_MAP['0'+d]) return ACC_MAP['0'+d];
+  if (d.length === 9 && d[0]==='0' && ACC_MAP[d.slice(1)]) return ACC_MAP[d.slice(1)];
+  return null;
+}
+
+function setPair(codeId, nameId, code, name) {
+  if (code) document.getElementById(codeId).value = fmt(code);
+  if (name !== undefined && name !== null && name !== '') {
+    document.getElementById(nameId).value = name;
+  }
+}
+
+function fillFromAccount(acc) {
+  if (!acc) return;
+  const byLevel = {};
+  (acc.ancestors || []).forEach(a => { byLevel[a.level] = a; });
+  if (byLevel[1]) setPair('sec_code', 'sec_name', byLevel[1].code, byLevel[1].name);
+  if (byLevel[2]) setPair('chap_code', 'chap_name', byLevel[2].code, byLevel[2].name);
+  if (byLevel[3]) setPair('par_code', 'par_name', byLevel[3].code, byLevel[3].name);
+  if (acc.ancestors && acc.ancestors.length) {
+    const p = lookup(acc.ancestors[0].code);
+    if (p) document.getElementById('parent_id').value = p.id;
+  }
+  if (acc.level === 1) setPair('sec_code', 'sec_name', acc.code, acc.name);
+  if (acc.level === 2) setPair('chap_code', 'chap_name', acc.code, acc.name);
+  if (acc.level === 3) setPair('par_code', 'par_name', acc.code, acc.name);
+}
+
+function fillParentsByPrefix(d) {
+  let dPad = d;
+  if (dPad.length === 8 && dPad[0] !== '0') dPad = '0' + dPad;
+  // Section
+  if (dPad.length >= 2) {
+    const secCode = dPad.slice(0, 2);
+    const sec = lookup(secCode);
+    setPair('sec_code', 'sec_name', secCode, sec ? sec.name : document.getElementById('sec_name').value);
+    if (sec) document.getElementById('sec_name').value = sec.name;
+  }
+  // Chapitre
+  if (dPad.length >= 4) {
+    const chapCode = dPad.slice(0, 4);
+    const chap = lookup(chapCode);
+    setPair('chap_code', 'chap_name', chapCode, chap ? chap.name : null);
+    if (chap) document.getElementById('chap_name').value = chap.name;
+    else if (!document.getElementById('chap_name').value) document.getElementById('chap_name').value = '';
+  }
+  // Paragraphe
+  if (dPad.length >= 6) {
+    const parCode = dPad.slice(0, 6);
+    const par = lookup(parCode);
+    setPair('par_code', 'par_name', parCode, par ? par.name : null);
+    if (par) {
+      document.getElementById('par_name').value = par.name;
+      document.getElementById('parent_id').value = par.id;
+    } else {
+      const chap = lookup(dPad.slice(0, 4));
+      if (chap) document.getElementById('parent_id').value = chap.id;
+    }
+  }
+  const secDig = digits(document.getElementById('sec_code').value);
+  if (secDig === '01') document.getElementById('account_class').value = 'finances';
+  else if (secDig === '02') document.getElementById('account_class').value = 'fonctionnement';
+}
+
+function updateFromCompte(opts) {
+  opts = opts || {};
+  const reformat = !!opts.reformat;
+  const raw = document.getElementById('cpt_code').value;
+  let d = digits(raw);
+  if (reformat && d) {
+    document.getElementById('cpt_code').value = fmt(d);
+  }
+
+  const acc = lookup(d);
+  if (acc) {
+    fillFromAccount(acc);
+    if (!document.getElementById('cpt_name').dataset.touched) {
+      document.getElementById('cpt_name').value = acc.name;
+    }
+    if (acc.ancestors && acc.ancestors.length) {
+      const p = lookup(acc.ancestors[0].code);
+      if (p) document.getElementById('parent_id').value = p.id;
+    }
+    const secDig = digits(document.getElementById('sec_code').value);
+    if (secDig === '01') document.getElementById('account_class').value = 'finances';
+    else if (secDig === '02') document.getElementById('account_class').value = 'fonctionnement';
+  } else if (d.length >= 2) {
+    // Nouveau ou en cours de saisie : remplir parents trouvés, ne pas effacer les intitulés déjà affichés
+    fillParentsByPrefix(d);
+  }
+}
+
+const cptCode = document.getElementById('cpt_code');
+cptCode.addEventListener('input', function() {
+  updateFromCompte({ reformat: false });
+});
+cptCode.addEventListener('blur', function() {
+  if (this.value) this.value = fmt(digits(this.value));
+  updateFromCompte({ reformat: true });
+});
+cptCode.addEventListener('focus', function() {
+  // sélection pour faciliter la modification
+  setTimeout(() => { try { this.select(); } catch(e) {} }, 0);
+});
+// Backspace / édition libre : ne pas bloquer
+cptCode.addEventListener('keydown', function(e) {
+  // autoriser toutes les touches de navigation et édition
+  if (['Backspace','Delete','ArrowLeft','ArrowRight','Tab','Home','End'].includes(e.key)) return;
+});
+document.getElementById('cpt_name').addEventListener('input', function() {
+  this.dataset.touched = '1';
+});
+
+{% if account %}
+(function() {
+  document.getElementById('cpt_code').value = fmt({{ account.code|tojson }});
+  document.getElementById('cpt_name').value = {{ account.name|tojson }};
+  document.getElementById('cpt_name').dataset.touched = '1';
+  updateFromCompte({ reformat: true });
+})();
+{% endif %}
+
+document.getElementById('accountForm').addEventListener('submit', function() {
+  let d = digits(document.getElementById('cpt_code').value);
+  // Stocker sans le 0 artificiel si code original 8 chiffres
+  document.getElementById('cpt_code').value = d;
+});
+
+document.getElementById('btnConsultPlan').addEventListener('click', function() {
+  const modal = new bootstrap.Modal(document.getElementById('planModal'));
+  const body = document.getElementById('planModalBody');
+  body.innerHTML = '<div class="text-center py-4 text-muted">Chargement…</div>';
+  modal.show();
+  fetch('{{ url_for("accounts.list_accounts") }}')
+    .then(r => r.text())
+    .then(html => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = html;
+      const tree = tmp.querySelector('#accountTree');
+      body.innerHTML = tree ? '<div class="p-2">' + tree.innerHTML + '</div>' : '<div class="p-3">Impossible de charger.</div>';
+      body.querySelectorAll('.tree-children').forEach(c => c.classList.add('open'));
+      body.querySelectorAll('.tree-toggle').forEach(el => {
+        el.dataset.open = '1';
+        el.innerHTML = '<i class="bi bi-chevron-down"></i>';
+      });
+      body.querySelectorAll('.tree-actions').forEach(a => a.remove());
+    })
+    .catch(() => { body.innerHTML = '<div class="p-3 text-danger">Erreur.</div>'; });
+});
+</script>
+{% endblock %}
