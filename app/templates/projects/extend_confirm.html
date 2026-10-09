@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Allonger la tâche – La Fourmi{% endblock %}
+{% block content %}
+<h2 class="page-title mb-3"><i class="bi bi-calendar-plus"></i> Allonger « {{ task.title }} »</h2>
+<div class="card mb-3">
+    <div class="card-body">
+        <p class="mb-1">Fin actuelle :
+            <strong>{% if task.end_date %}{{ task.end_date.strftime('%d/%m/%y') }}{% else %}—{% endif %}</strong>
+            → nouvelle fin : <strong>{{ new_end.strftime('%d/%m/%y') }}</strong>
+            (+{{ days }} jour{{ 's' if days > 1 else '' }})
+        </p>
+        <p class="text-muted small mb-0">Projet : {{ task.project.name }} · Site : {{ task.project.site.name if task.project.site else '—' }}</p>
+    </div>
+</div>
+
+{% if impacts %}
+<div class="alert alert-warning">
+    <strong>{{ impacts|length }} tâche(s)</strong> seront décalées de +{{ days }} jour(s) (règles A+B+C) :
+</div>
+<div class="card mb-3">
+    <div class="table-responsive">
+    <table class="table table-sm mb-0">
+        <thead>
+            <tr>
+                <th>Tâche</th>
+                <th>Raison</th>
+                <th>Début actuel</th>
+                <th>Fin actuelle</th>
+                <th>Nouveau début</th>
+                <th>Nouvelle fin</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t, reason in impacts %}
+            <tr>
+                <td>{{ t.title }}</td>
+                <td><span class="badge bg-secondary">{{ reason }}</span></td>
+                <td>{{ t.start_date.strftime('%d/%m/%y') if t.start_date else '—' }}</td>
+                <td>{{ t.end_date.strftime('%d/%m/%y') if t.end_date else '—' }}</td>
+                <td>{% if t.start_date %}{{ (t.start_date + timedelta(days=days)).strftime('%d/%m/%y') }}{% else %}—{% endif %}</td>
+                <td>{% if t.end_date %}{{ (t.end_date + timedelta(days=days)).strftime('%d/%m/%y') }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-light border">Aucune autre tâche impactée.</div>
+{% endif %}
+
+<form method="POST" action="{{ url_for('projects.extend_task', task_id=task.id) }}">
+    <input type="hidden" name="extra_days" value="{{ days }}">
+    <input type="hidden" name="confirm" value="1">
+    <div class="form-check mb-3">
+        <input class="form-check-input" type="checkbox" name="apply_shift" value="1" id="apply_shift" {% if impacts %}checked{% endif %}>
+        <label class="form-check-label" for="apply_shift">Appliquer le décalage automatique des tâches listées</label>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-check-lg"></i> Confirmer l’allongement
+        </button>
+        <a href="{{ url_for('projects.edit_task', task_id=task.id) }}" class="btn btn-outline-secondary">Annuler</a>
+    </div>
+</form>
+{% endblock %}

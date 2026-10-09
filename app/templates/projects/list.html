@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Projets – La Fourmi{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="page-title mb-0"><i class="bi bi-kanban"></i> Projets</h2>
+    <div class="d-flex gap-2">
+        {% if can_manage %}
+        <a href="{{ url_for('projects.manage_sites') }}" class="btn btn-outline-dark btn-sm">
+            <i class="bi bi-geo-alt"></i> Sites
+        </a>
+        <a href="{{ url_for('projects.new_project') }}" class="btn btn-primary">
+            <i class="bi bi-plus-lg"></i> Nouveau projet
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<form method="GET" class="card mb-3">
+    <div class="card-body py-2">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Statut</label>
+                <select name="status" class="form-select form-select-sm">
+                    <option value="">Tous</option>
+                    {% for k,v in {'planifie':'Planifié','en_cours':'En cours','clos':'Clos'}.items() %}
+                    <option value="{{ k }}" {% if filter_status == k %}selected{% endif %}>{{ v }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Site</label>
+                <select name="site_id" class="form-select form-select-sm">
+                    <option value="">Tous</option>
+                    {% for s in sites %}
+                    <option value="{{ s.id }}" {% if filter_site_id == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small mb-0">Responsable</label>
+                <select name="responsible_id" class="form-select form-select-sm">
+                    <option value="">Tous</option>
+                    {% for u in users|default([]) %}
+                    <option value="{{ u.id }}" {% if filter_responsible_id == u.id|string %}selected{% endif %}>{{ u.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-sm btn-dark">Filtrer</button>
+                <a href="{{ url_for('projects.list_projects') }}" class="btn btn-sm btn-outline-secondary">Réinit.</a>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle">
+            <thead>
+                <tr>
+                    <th class="text-center">Nom</th>
+                    <th class="text-center">Site</th>
+                    <th class="text-center">Période</th>
+                    <th class="text-center">Statut</th>
+                    <th class="text-center">Avancement</th>
+                    <th class="text-center">Responsable</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in projects %}
+                <tr>
+                    <td>{{ p.name }}</td>
+                    <td class="text-center">{{ p.site.name if p.site else '—' }}</td>
+                    <td class="text-center text-nowrap">
+                        {% if p.start_date and p.end_date %}
+                            {{ p.start_date.strftime('%d/%m/%y') }} → {{ p.end_date.strftime('%d/%m/%y') }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td class="text-center"><span class="badge bg-secondary">{{ p.status_label() }}</span></td>
+                    <td class="text-center" style="min-width:120px">
+                        <div class="progress" style="height:8px">
+                            <div class="progress-bar bg-dark" style="width:{{ p.task_progress() }}%"></div>
+                        </div>
+                        <small>{{ p.task_progress() }}%</small>
+                    </td>
+                    <td class="text-center">{{ p.responsible.full_name if p.responsible else '—' }}</td>
+                    <td class="text-end">
+                        <a href="{{ url_for('projects.view_project', project_id=p.id) }}" class="btn btn-sm btn-outline-dark" title="Voir">
+                            <i class="bi bi-eye"></i>
+                        </a>
+                        {% if can_manage %}
+                        <a href="{{ url_for('projects.edit_project', project_id=p.id) }}" class="btn btn-sm btn-outline-dark" title="Modifier">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">Aucun projet. Créez d’abord un site, puis un projet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

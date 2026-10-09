@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+{% block title %}Brouillard synthétique – La Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+.main-content { min-width: 0; overflow-x: auto; }
+</style>
+<style>
+    .fmt-code { font-family: inherit; font-weight: 400; color: #111; white-space: nowrap; cursor: default; }
+    .amt { white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right !important; }
+    .table-desktop td { text-align: center; vertical-align: middle; }
+    .table-desktop td.amt { text-align: right !important; }
+    .table-desktop td.desc-cell { text-align: left; }
+    .table-desktop thead th { text-align: center !important; }
+    .desc-cell {
+        min-width: 220px;
+        max-width: 380px;
+        width: 28%;
+        font-size: 10pt;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        text-align: left !important;
+    }
+    .table-desktop table { table-layout: fixed; width: 100%; }
+    .table-desktop th, .table-desktop td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .table-desktop { table-layout: fixed; width: 100%; }
+    .table-desktop th, .table-desktop td {
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap !important;
+        font-size: 9.5pt; padding: 0.3rem 0.35rem;
+    }
+    .table-desktop th:nth-child(1), .table-desktop td:nth-child(1) { width: 58px; }   /* Date */
+    .table-desktop th:nth-child(2), .table-desktop td:nth-child(2) { width: 92px; }   /* Crédit */
+    .table-desktop th:nth-child(3), .table-desktop td:nth-child(3) { width: 72px; }   /* Montant */
+    .table-desktop th:nth-child(4), .table-desktop td:nth-child(4) { width: 48px; }   /* Monnaie */
+    .table-desktop th:nth-child(5), .table-desktop td:nth-child(5) { width: auto; min-width: 120px; }  /* Description variable */
+    .table-desktop th:nth-child(6), .table-desktop td:nth-child(6) { width: 92px; }   /* Débit */
+    .table-desktop th:nth-child(7), .table-desktop td:nth-child(7) { width: 72px; }   /* Montant */
+    .table-desktop th:nth-child(8), .table-desktop td:nth-child(8) { width: 48px; }   /* Monnaie */
+    .table-desktop th:nth-child(9), .table-desktop td:nth-child(9) { width: 36px; }   /* PJ */
+    .table-desktop th:nth-child(10), .table-desktop td:nth-child(10) { width: 40px; } /* Détails */
+
+    /* Important : ne pas couper les popups */
+    .table-desktop, .table-desktop .card-body, .table-responsive, .table-desktop table {
+        overflow: visible !important;
+    }
+    .pj-wrap { position: relative; display: inline-block; }
+    .pj-badge { cursor: pointer; user-select: none; }
+    .pj-badge { cursor: pointer; user-select: none; }
+    .pj-preview {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        background: #fff;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        box-shadow: 0 8px 28px rgba(0,0,0,.22);
+        padding: 10px;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        gap: 10px;
+        align-items: center;
+    }
+    .pj-preview.show { display: flex !important; }
+    .pj-preview img {
+        width: 150px;
+        height: 120px;
+        object-fit: contain;
+        border-radius: 4px;
+        border: 1px solid #eee;
+        flex-shrink: 0;
+        background: #fafafa;
+    }
+    .pj-preview .pj-file {
+        width: 120px;
+        height: 100px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #f5f5f5;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        text-align: center;
+        padding: 6px;
+        text-decoration: none;
+        color: #333;
+        flex-shrink: 0;
+        white-space: normal;
+        word-break: break-word;
+    }
+    .acc-tip {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        background: #111;
+        color: #fff;
+        font-size: 0.85rem;
+        padding: 6px 12px;
+        border-radius: 6px;
+        max-width: 420px;
+        white-space: normal;
+        line-height: 1.35;
+        box-shadow: 0 4px 16px rgba(0,0,0,.25);
+        pointer-events: none;
+    }
+    .acc-tip.show { display: block; }
+    .entry-card { display: none; }
+    @media (max-width: 767.98px) {
+        .table-desktop { display: none !important; }
+        .entry-card { display: block; }
+        .entry-card .card { margin-bottom: 0.75rem; }
+        .entry-card .row-line { font-size: 0.85rem; }
+        .entry-card .label { color: #888; font-size: 0.75rem; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 mb-md-4 flex-wrap gap-2">
+    <h2 class="page-title mb-0"><i class="bi bi-journal-text"></i> Brouillard synthétique</h2>
+    {% if current_user.can_edit_journal() %}
+    <a href="{{ url_for('journal.new_entry') }}" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> <span class="d-none d-sm-inline">Nouvelle écriture</span><span class="d-sm-none">Nouveau</span>
+    </a>
+    {% endif %}
+</div>
+
+{# ===== Desktop table ===== #}
+<div class="card table-desktop">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover table-sm mb-0 align-middle">
+                <thead>
+                    <tr class="text-center">
+                        <th class="text-center">Date</th>
+                        <th class="text-center">Crédit</th>
+                        <th class="text-center">Montant</th>
+                        <th class="text-center">Monnaie</th>
+                        <th class="text-center">Description</th>
+                        <th class="text-center">Débit</th>
+                        <th class="text-center">Montant</th>
+                        <th class="text-center">Monnaie</th>
+                        <th class="text-center">PJ</th>
+                        <th class="text-center">Détails</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in entries.items %}
+                    {% set credit_line = e.lines|selectattr('side', 'equalto', 'credit')|list|first %}
+                    {% set debit_line = e.lines|selectattr('side', 'equalto', 'debit')|list|first %}
+                    <tr>
+                        <td class="text-nowrap text-center">{{ e.entry_date.strftime('%d/%m/%y') }}</td>
+                        <td class="text-center">
+                            {% if credit_line %}
+                            <span class="fmt-code acc-hover" data-name="{{ credit_line.account.name }}">{{ credit_line.account.code|format_code }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="amt">
+                            {% if credit_line %}
+                                {% if credit_line.amount_mga %}{{ '{:,.0f}'.format(credit_line.amount_mga).replace(',', ' ') }}
+                                {% elif credit_line.amount_usd %}{{ '{:,.2f}'.format(credit_line.amount_usd) }}
+                                {% elif credit_line.amount_eur %}{{ '{:,.2f}'.format(credit_line.amount_eur) }}
+                                {% else %}0{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if credit_line %}
+                                {% if credit_line.amount_mga %}MGA{% elif credit_line.amount_usd %}USD{% elif credit_line.amount_eur %}EUR{% else %}—{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="desc-cell text-center" title="{{ e.description }}">{{ e.description }}</td>
+                        <td class="text-center">
+                            {% if debit_line %}
+                            <span class="fmt-code acc-hover" data-name="{{ debit_line.account.name }}">{{ debit_line.account.code|format_code }}</span>
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="amt">
+                            {% if debit_line %}
+                                {% if debit_line.amount_mga %}{{ '{:,.0f}'.format(debit_line.amount_mga).replace(',', ' ') }}
+                                {% elif debit_line.amount_usd %}{{ '{:,.2f}'.format(debit_line.amount_usd) }}
+                                {% elif debit_line.amount_eur %}{{ '{:,.2f}'.format(debit_line.amount_eur) }}
+                                {% else %}0{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if debit_line %}
+                                {% if debit_line.amount_mga %}MGA{% elif debit_line.amount_usd %}USD{% elif debit_line.amount_eur %}EUR{% else %}—{% endif %}
+                            {% else %}—{% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if e.attachments %}
+                            <div class="pj-wrap">
+                                <span class="badge bg-dark pj-badge">{{ e.attachments|length }}</span>
+                                <div class="pj-preview-content" hidden>
+                                    {% for att in e.attachments %}
+                                        {% set url = url_for('static', filename='uploads/' + att.stored_filename) %}
+                                        {% if att.file_type and att.file_type.startswith('image') %}
+                                            <img class="pj-thumb" src="{{ url }}" data-full="{{ url }}" data-name="{{ att.original_filename }}" alt="{{ att.original_filename }}" style="cursor:pointer;">
+                                        {% else %}
+                                            <div class="pj-file pj-thumb" data-full="{{ url }}" data-name="{{ att.original_filename }}" style="cursor:pointer;">
+                                                <i class="bi bi-file-earmark" style="font-size:1.5rem"></i>
+                                                {{ att.original_filename }}
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% else %}<span class="text-muted">—</span>{% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{{ url_for('journal.view_entry', entry_id=e.id) }}" class="btn btn-sm btn-outline-primary" title="Détails">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="11" class="text-center text-muted py-4">Aucune écriture.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{# ===== Mobile cards ===== #}
+<div class="entry-card">
+    {% for e in entries.items %}
+    {% set credit_line = e.lines|selectattr('side', 'equalto', 'credit')|list|first %}
+    {% set debit_line = e.lines|selectattr('side', 'equalto', 'debit')|list|first %}
+    <div class="card">
+        <div class="card-body py-2 px-3">
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <div>
+                    <strong>{{ e.entry_date.strftime('%d/%m/%y') }}</strong>
+                    <code class="ms-2 small">{{ e.entry_code }}</code>
+                </div>
+                <a href="{{ url_for('journal.view_entry', entry_id=e.id) }}" class="btn btn-sm btn-outline-primary py-0" title="Détails">
+                    <i class="bi bi-eye"></i>
+                </a>
+            </div>
+            <div class="text-muted small mb-2">{{ e.description }}</div>
+            <div class="row-line mb-1">
+                <span class="label">Crédit</span>
+                {% if credit_line %}
+                <span class="fmt-code">{{ credit_line.account.code|format_code }}</span>
+                <span class="text-muted small">{{ credit_line.account.name[:25] }}</span>
+                —
+                <strong class="amt">
+                    {% if credit_line.amount_mga %}{{ '{:,.0f}'.format(credit_line.amount_mga).replace(',', ' ') }} MGA
+                    {% elif credit_line.amount_usd %}{{ '{:,.2f}'.format(credit_line.amount_usd) }} USD
+                    {% elif credit_line.amount_eur %}{{ '{:,.2f}'.format(credit_line.amount_eur) }} EUR
+                    {% endif %}
+                </strong>
+                {% endif %}
+            </div>
+            <div class="row-line">
+                <span class="label">Débit</span>
+                {% if debit_line %}
+                <span class="fmt-code">{{ debit_line.account.code|format_code }}</span>
+                <span class="text-muted small">{{ debit_line.account.name[:25] }}</span>
+                —
+                <strong class="amt">
+                    {% if debit_line.amount_mga %}{{ '{:,.0f}'.format(debit_line.amount_mga).replace(',', ' ') }} MGA
+                    {% elif debit_line.amount_usd %}{{ '{:,.2f}'.format(debit_line.amount_usd) }} USD
+                    {% elif debit_line.amount_eur %}{{ '{:,.2f}'.format(debit_line.amount_eur) }} EUR
+                    {% endif %}
+                </strong>
+                {% endif %}
+            </div>
+            {% if e.attachments %}
+            <div class="mt-1">
+                <div class="pj-wrap">
+                    <span class="badge bg-dark pj-badge">{{ e.attachments|length }} PJ</span>
+                    <div class="pj-preview">
+                        {% for att in e.attachments %}
+                            {% set url = url_for('static', filename='uploads/' + att.stored_filename) %}
+                            {% if att.file_type and att.file_type.startswith('image') %}
+                                <a href="{{ url }}" target="_blank"><img src="{{ url }}" alt="{{ att.original_filename }}"></a>
+                            {% else %}
+                                <a class="pj-file" href="{{ url }}" target="_blank">
+                                    <i class="bi bi-file-earmark" style="font-size:1.5rem"></i>
+                                    {{ att.original_filename[:18] }}
+                                </a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center text-muted py-4">Aucune écriture.</div>
+    {% endfor %}
+</div>
+
+{% if entries.pages > 1 %}
+<nav class="mt-3">
+    <ul class="pagination pagination-sm justify-content-center mb-0">
+        {% for p in entries.iter_pages() %}
+            {% if p %}
+            <li class="page-item {% if p == entries.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('journal.list_entries', page=p) }}">{{ p }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+<div id="pjWindowsRoot"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  // Tooltip intitulé compte
+  const tip = document.createElement('div');
+  tip.className = 'acc-tip';
+  document.body.appendChild(tip);
+
+  document.querySelectorAll('.acc-hover').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      tip.textContent = el.dataset.name || '';
+      tip.classList.add('show');
+      positionNear(el, tip, 8);
+    });
+    el.addEventListener('mousemove', () => positionNear(el, tip, 8));
+    el.addEventListener('mouseleave', () => tip.classList.remove('show'));
+  });
+
+  // Aperçu hover
+  const pjBox = document.createElement('div');
+  pjBox.className = 'pj-preview';
+  document.body.appendChild(pjBox);
+
+  let root = document.getElementById('pjWindowsRoot');
+  if (!root) {
+    root = document.createElement('div');
+    root.id = 'pjWindowsRoot';
+    document.body.appendChild(root);
+  }
+  let zTop = 4000;
+  let winOffset = 0;
+
+  function makeWindow(url, name, isImg) {
+    zTop += 1;
+    winOffset = (winOffset + 28) % 160;
+    const win = document.createElement('div');
+    win.className = 'pj-float-win';
+    win.style.cssText = 'position:fixed;top:'+(60+winOffset)+'px;left:'+(80+winOffset)+'px;z-index:'+zTop+';width:min(480px,90vw);max-height:80vh;background:#111;border-radius:10px;box-shadow:0 12px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;';
+    const header = document.createElement('div');
+    header.style.cssText = 'cursor:move;background:#1a1a1a;color:#fff;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;user-select:none;gap:8px;';
+    header.innerHTML = '<span style="font-size:0.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;">'+ (name || 'Pièce jointe') +'</span>'
+      + '<button type="button" style="background:none;border:none;color:#fff;font-size:1.3rem;line-height:1;cursor:pointer;padding:0 4px;">&times;</button>';
+    header.querySelector('button').onclick = () => win.remove();
+    function bringFront(){ zTop += 1; win.style.zIndex = zTop; }
+    win.addEventListener('mousedown', bringFront);
+    header.addEventListener('mousedown', bringFront);
+
+    // drag
+    let dragging = false, ox = 0, oy = 0;
+    header.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      dragging = true;
+      const rect = win.getBoundingClientRect();
+      ox = e.clientX - rect.left;
+      oy = e.clientY - rect.top;
+      e.preventDefault();
+    });
+    const onMove = (e) => {
+      if (!dragging) return;
+      win.style.left = Math.max(0, e.clientX - ox) + 'px';
+      win.style.top = Math.max(0, e.clientY - oy) + 'px';
+    };
+    const onUp = () => { dragging = false; };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+
+    const body = document.createElement('div');
+    body.style.cssText = 'padding:10px;overflow:auto;text-align:center;background:#000;';
+    if (isImg) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.alt = name;
+      img.style.cssText = 'max-width:100%;max-height:70vh;object-fit:contain;cursor:zoom-in;border-radius:4px;';
+      img.onclick = function() {
+        if (win.style.width === 'min(90vw, 900px)' || win.dataset.zoomed === '1') {
+          win.style.width = 'min(480px,90vw)';
+          img.style.maxHeight = '70vh';
+          win.dataset.zoomed = '0';
+        } else {
+          win.style.width = 'min(90vw, 900px)';
+          img.style.maxHeight = '85vh';
+          win.dataset.zoomed = '1';
+        }
+      };
+      body.appendChild(img);
+    } else {
+      body.innerHTML = '<div style="color:#fff;padding:30px;"><i class="bi bi-file-earmark" style="font-size:2.5rem"></i><div class="mt-2">'+name+'</div>'
+        + '<a class="btn btn-sm btn-outline-light mt-2" href="'+url+'" target="_blank">Ouvrir</a></div>';
+    }
+    win.appendChild(header);
+    win.appendChild(body);
+    root.appendChild(win);
+  }
+
+  function openAllSeparate(wrap) {
+    const content = wrap.querySelector('.pj-preview-content');
+    if (!content) return;
+    const thumbs = content.querySelectorAll('.pj-thumb');
+    thumbs.forEach(th => {
+      const url = th.dataset.full || th.getAttribute('src');
+      const name = th.dataset.name || '';
+      const isImg = th.tagName === 'IMG' || (url && /\.(jpg|jpeg|png|gif|webp)$/i.test(url));
+      makeWindow(url, name, isImg);
+    });
+    pjBox.classList.remove('show');
+  }
+
+  function openOne(th, wrap) {
+    const url = th.dataset.full || th.getAttribute('src');
+    const name = th.dataset.name || '';
+    const isImg = th.tagName === 'IMG' || (url && /\.(jpg|jpeg|png|gif|webp)$/i.test(url));
+    makeWindow(url, name, isImg);
+    pjBox.classList.remove('show');
+  }
+
+  document.querySelectorAll('.pj-wrap').forEach(wrap => {
+    const badge = wrap.querySelector('.pj-badge');
+    const content = wrap.querySelector('.pj-preview-content');
+    if (!badge || !content) return;
+
+    badge.addEventListener('mouseenter', () => {
+      pjBox.innerHTML = content.innerHTML;
+      pjBox.classList.add('show');
+      positionNear(badge, pjBox, 10);
+      pjBox.querySelectorAll('.pj-thumb').forEach(th => {
+        th.onclick = (e) => { e.preventDefault(); e.stopPropagation(); openOne(th, wrap); };
+      });
+    });
+    badge.addEventListener('mousemove', () => positionNear(badge, pjBox, 10));
+    badge.addEventListener('mouseleave', () => {
+      setTimeout(() => { if (!pjBox.matches(':hover')) pjBox.classList.remove('show'); }, 120);
+    });
+    // clic badge = ouvrir toutes en fenêtres séparées
+    badge.addEventListener('click', (e) => { e.preventDefault(); openAllSeparate(wrap); });
+    pjBox.addEventListener('mouseleave', () => pjBox.classList.remove('show'));
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      root.querySelectorAll('.pj-float-win').forEach(w => w.remove());
+    }
+  });
+
+  function positionNear(anchor, box, gap) {
+    const r = anchor.getBoundingClientRect();
+    const bw = box.offsetWidth || 200;
+    const bh = box.offsetHeight || 100;
+    let left = r.right - bw;
+    let top = r.bottom + gap;
+    if (left < 8) left = 8;
+    if (left + bw > window.innerWidth - 8) left = window.innerWidth - bw - 8;
+    if (top + bh > window.innerHeight - 8) top = r.top - bh - gap;
+    if (top < 8) top = 8;
+    box.style.left = left + 'px';
+    box.style.top = top + 'px';
+  }
+})();
+</script>
+{% endblock %}

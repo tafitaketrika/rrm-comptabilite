@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} – Projets{% endblock %}
+{% block extra_css %}
+<style>
+/* Kanban style Trello */
+.kanban-board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
+.kanban-list {
+  flex: 0 0 280px; max-width: 280px;
+  background: #ebecf0; border-radius: 12px; padding: 8px;
+  min-height: 320px;
+}
+.kanban-list-header {
+  font-weight: 700; font-size: 0.85rem; padding: 6px 8px 10px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.kanban-col {
+  min-height: 200px; border-radius: 8px; padding: 4px;
+  transition: background .15s;
+}
+.kanban-col.drag-over { background: #dfe3e8; outline: 2px dashed #888; }
+.kanban-card {
+  background: #fff; border-radius: 8px; padding: 10px 12px;
+  margin-bottom: 8px; box-shadow: 0 1px 2px rgba(0,0,0,.12);
+  cursor: grab; border-left: 4px solid #6c757d;
+  transition: box-shadow .15s, transform .1s;
+}
+.kanban-card:active { cursor: grabbing; }
+.kanban-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,.14); }
+.kanban-card.dragging { opacity: 0.5; transform: rotate(2deg); }
+.prio-haute { border-left-color: #dc3545; }
+.prio-normale { border-left-color: #6c757d; }
+.prio-basse { border-left-color: #198754; }
+.card-labels { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.card-label { height: 8px; width: 40px; border-radius: 4px; }
+.card-label.haute { background: #dc3545; }
+.card-label.normale { background: #6c757d; }
+.card-label.basse { background: #198754; }
+.card-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; font-size: 0.75rem; color: #5e6c84; }
+.card-meta .badge-date { background: #f4f5f7; border-radius: 4px; padding: 2px 6px; }
+.card-avatars { display: flex; margin-left: auto; }
+.card-avatar {
+  width: 24px; height: 24px; border-radius: 50%; background: #333; color: #fff;
+  font-size: 0.65rem; display: flex; align-items: center; justify-content: center;
+  margin-left: -4px; border: 2px solid #fff;
+}
+.kanban-empty { color: #8c9bab; font-size: 0.8rem; text-align: center; padding: 16px 8px; }
+.gantt-wrap { overflow-x: auto; border: 1px solid #e0e0e0; border-radius: 8px; background: #fff; }
+.gantt-table { border-collapse: separate; border-spacing: 0; min-width: 100%; }
+.gantt-table th, .gantt-table td { font-size: 0.8rem; padding: 0.35rem 0.5rem; border-bottom: 1px solid #eee; white-space: nowrap; }
+.gantt-table th { background: #1a1a1a; color: #fff; position: sticky; top: 0; z-index: 2; }
+.gantt-label { position: sticky; left: 0; background: #fafafa; z-index: 1; min-width: 160px; max-width: 200px; border-right: 1px solid #ddd; }
+.gantt-table th.gantt-label { background: #1a1a1a; z-index: 3; }
+.gantt-bar-cell { position: relative; height: 28px; min-width: 28px; }
+.gantt-bar {
+  position: absolute; top: 4px; height: 20px; border-radius: 4px;
+  background: #333; color: #fff; font-size: 0.65rem; line-height: 20px;
+  padding: 0 4px; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+}
+.gantt-bar.en_cours { background: #0d6efd; }
+.gantt-bar.termine { background: #198754; }
+.gantt-bar.bloque { background: #dc3545; }
+.gantt-bar.a_faire { background: #6c757d; }
+.gantt-today { background: rgba(255, 193, 7, 0.25) !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <div>
+        <h2 class="page-title mb-1"><i class="bi bi-kanban"></i> {{ project.name }}</h2>
+        <div class="text-muted small">
+            Site : <strong>{{ project.site.name if project.site else '—' }}</strong>
+            · {{ project.status_label() }}
+            · Avancement {{ project.task_progress() }}%
+            {% if project.responsible %} · Resp. {{ project.responsible.full_name }}{% endif %}
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="{{ url_for('projects.new_task', project_id=project.id) }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i> Tâche
+        </a>
+        {% if can_manage %}
+        <a href="{{ url_for('projects.edit_project', project_id=project.id) }}" class="btn btn-outline-dark btn-sm">Modifier</a>
+        {% endif %}
+        <a href="{{ url_for('projects.list_projects') }}" class="btn btn-outline-secondary btn-sm">← Liste</a>
+    </div>
+</div>
+
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-kanban" type="button">Kanban</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-gantt" type="button">Planning (Gantt)</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-list" type="button">Liste</button></li>
+</ul>
+
+<div class="tab-content">
+    <div class="tab-pane fade show active" id="tab-kanban">
+        <div class="kanban-board" id="kanbanBoard">
+            {% set labels = {'a_faire':'À faire','en_cours':'En cours','bloque':'Bloqué','termine':'Terminé'} %}
+            {% for st in statuses %}
+            <div class="kanban-list">
+                <div class="kanban-list-header">
+                    <span>{{ labels[st] }}</span>
+                    <span class="badge bg-dark rounded-pill" data-count-for="{{ st }}">{{ by_status[st]|length }}</span>
+                </div>
+                <div class="kanban-col" data-status="{{ st }}"
+                     ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+                    {% for t in by_status[st] %}
+                    <div class="kanban-card prio-{{ t.priority }}"
+                         draggable="true"
+                         data-task-id="{{ t.id }}"
+                         data-status="{{ st }}"
+                         ondragstart="onDragStart(event)"
+                         ondragend="onDragEnd(event)">
+                        <div class="card-labels">
+                            <span class="card-label {{ t.priority }}" title="Priorité {{ t.priority }}"></span>
+                        </div>
+                        <a href="{{ url_for('projects.edit_task', task_id=t.id) }}"
+                           class="text-dark text-decoration-none fw-semibold d-block"
+                           onclick="event.stopPropagation()">{{ t.title }}</a>
+                        {% if t.description %}
+                        <div class="small text-muted mt-1" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+                            {{ t.description[:80] }}{% if t.description|length > 80 %}…{% endif %}
+                        </div>
+                        {% endif %}
+                        <div class="card-meta">
+                            {% if t.end_date %}
+                            <span class="badge-date"><i class="bi bi-calendar3"></i> {{ t.end_date.strftime('%d/%m/%y') }}</span>
+                            {% elif t.start_date %}
+                            <span class="badge-date"><i class="bi bi-calendar3"></i> {{ t.start_date.strftime('%d/%m/%y') }}</span>
+                            {% endif %}
+                            {% if t.assignee_names() %}
+                            <div class="card-avatars" title="{{ t.assignee_names() }}">
+                                {% for part in t.assignee_names().split(',')[:4] %}
+                                <span class="card-avatar">{{ part.strip()[:1]|upper }}</span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% if not by_status[st] %}
+                    <div class="kanban-empty" data-empty>Déposer ici</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="tab-pane fade" id="tab-gantt">
+        {% if gantt_days and tasks %}
+        <div class="gantt-wrap mb-2">
+            <table class="gantt-table">
+                <thead>
+                    <tr>
+                        <th class="gantt-label">Tâche</th>
+                        {% for d in gantt_days %}
+                        <th class="text-center {% if d.isoformat() == today_iso %}gantt-today{% endif %}" title="{{ d.strftime('%d/%m/%Y') }}">
+                            {{ d.strftime('%d') }}{% if d.day == 1 or loop.first %}<br><small>{{ d.strftime('%m') }}</small>{% endif %}
+                        </th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tasks %}
+                    {% if t.start_date and t.end_date and t.start_date <= gantt_end and t.end_date >= gantt_start %}
+                    {% set offset = (t.start_date - gantt_start).days %}
+                    {% set span = (t.end_date - t.start_date).days + 1 %}
+                    {% if offset < 0 %}
+                        {% set span = span + offset %}
+                        {% set offset = 0 %}
+                    {% endif %}
+                    {% if offset + span > gantt_days|length %}
+                        {% set span = gantt_days|length - offset %}
+                    {% endif %}
+                    <tr>
+                        <td class="gantt-label">
+                            <a href="{{ url_for('projects.edit_task', task_id=t.id) }}" class="text-dark text-decoration-none">{{ t.title[:28] }}{% if t.title|length > 28 %}…{% endif %}</a>
+                            <div class="small text-muted">{{ t.assignee_names()[:30] }}</div>
+                        </td>
+                        <td colspan="{{ gantt_days|length }}" style="padding:0;position:relative;height:32px;">
+                            <div style="position:relative;height:32px;width:100%;">
+                                {% set cell_w = 100 / (gantt_days|length) %}
+                                <a href="{{ url_for('projects.edit_task', task_id=t.id) }}"
+                                   class="gantt-bar {{ t.status }}"
+                                   style="left:{{ offset * cell_w }}%;width:{{ span * cell_w }}%;"
+                                   title="{{ t.title }} : {{ t.start_date.strftime('%d/%m/%y') }} → {{ t.end_date.strftime('%d/%m/%y') }}">
+                                    {{ t.start_date.strftime('%d/%m') }}→{{ t.end_date.strftime('%d/%m') }}
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="small text-muted mb-0">Barres colorées selon le statut · Colonne jaune = aujourd’hui · Cliquez une barre pour modifier / allonger</p>
+        {% else %}
+        <div class="alert alert-light border">Aucune tâche avec dates début/fin pour afficher le planning. Ajoutez des dates sur les tâches.</div>
+        {% endif %}
+    </div>
+
+    <div class="tab-pane fade" id="tab-list">
+        <div class="card">
+            <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Titre</th>
+                        <th class="text-center">Période</th>
+                        <th class="text-center">Statut</th>
+                        <th class="text-center">Priorité</th>
+                        <th>Assignés</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for t in tasks %}
+                    <tr>
+                        <td>{{ t.title }}</td>
+                        <td class="text-center text-nowrap">
+                            {% if t.start_date %}{{ t.start_date.strftime('%d/%m/%y') }}{% endif %}
+                            {% if t.end_date %} → {{ t.end_date.strftime('%d/%m/%y') }}{% endif %}
+                        </td>
+                        <td class="text-center"><span class="badge bg-secondary">{{ t.status_label() }}</span></td>
+                        <td class="text-center">{{ t.priority_label() }}</td>
+                        <td>{{ t.assignee_names() or '—' }}</td>
+                        <td class="text-end">
+                            <a href="{{ url_for('projects.edit_task', task_id=t.id) }}" class="btn btn-sm btn-outline-dark"><i class="bi bi-pencil"></i></a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center text-muted py-3">Aucune tâche.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let dragTaskId = null;
+let dragFromCol = null;
+
+function onDragStart(e) {
+  const card = e.target.closest('.kanban-card');
+  if (!card) return;
+  dragTaskId = card.dataset.taskId;
+  dragFromCol = card.parentElement;
+  card.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragTaskId);
+}
+function onDragEnd(e) {
+  const card = e.target.closest('.kanban-card');
+  if (card) card.classList.remove('dragging');
+  document.querySelectorAll('.kanban-col').forEach(c => c.classList.remove('drag-over'));
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.classList.remove('drag-over');
+  const taskId = e.dataTransfer.getData('text/plain') || dragTaskId;
+  const newStatus = col.dataset.status;
+  if (!taskId || !newStatus) return;
+  const card = document.querySelector('.kanban-card[data-task-id="'+taskId+'"]');
+  if (!card) return;
+  if (card.dataset.status === newStatus && card.parentElement === col) return;
+
+  const empty = col.querySelector('[data-empty]');
+  if (empty) empty.remove();
+  col.appendChild(card);
+  card.dataset.status = newStatus;
+  if (dragFromCol && !dragFromCol.querySelector('.kanban-card')) {
+    const d = document.createElement('div');
+    d.className = 'kanban-empty';
+    d.dataset.empty = '1';
+    d.textContent = 'Déposer ici';
+    dragFromCol.appendChild(d);
+  }
+  document.querySelectorAll('.kanban-col').forEach(c => {
+    const st = c.dataset.status;
+    const n = c.querySelectorAll('.kanban-card').length;
+    const badge = document.querySelector('[data-count-for="'+st+'"]');
+    if (badge) badge.textContent = n;
+  });
+
+  const fd = new FormData();
+  fd.append('status', newStatus);
+  fetch('/projects/tasks/' + taskId + '/status', {
+    method: 'POST',
+    body: fd,
+    headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+  }).then(r => r.json()).then(data => {
+    if (!data.ok) location.reload();
+  }).catch(() => location.reload());
+}
+</script>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Historique – {{ task.title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="page-title mb-0"><i class="bi bi-clock-history"></i> Historique – {{ task.title }}</h2>
+    <a href="{{ url_for('projects.edit_task', task_id=task.id) }}" class="btn btn-outline-secondary btn-sm">← Tâche</a>
+</div>
+<div class="card">
+    <div class="table-responsive">
+    <table class="table table-sm table-hover mb-0">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Action</th>
+                <th>Par</th>
+                <th>Ancienne période</th>
+                <th>Nouvelle période</th>
+                <th>Jours</th>
+                <th>Raison</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% set seen = namespace(batches={}) %}
+            {% for log in logs %}
+            <tr class="{% if log.undone %}text-muted text-decoration-line-through{% endif %}">
+                <td class="text-nowrap">{{ log.created_at.strftime('%d/%m/%y %H:%M') if log.created_at else '—' }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.user.full_name if log.user else '—' }}</td>
+                <td class="text-nowrap">
+                    {{ log.old_start.strftime('%d/%m/%y') if log.old_start else '—' }}
+                    → {{ log.old_end.strftime('%d/%m/%y') if log.old_end else '—' }}
+                </td>
+                <td class="text-nowrap">
+                    {{ log.new_start.strftime('%d/%m/%y') if log.new_start else '—' }}
+                    → {{ log.new_end.strftime('%d/%m/%y') if log.new_end else '—' }}
+                </td>
+                <td>+{{ log.days }}</td>
+                <td>{{ log.reason or '—' }}</td>
+                <td>
+                    {% if not log.undone and log.batch_id not in seen.batches %}
+                    {% set _ = seen.batches.update({log.batch_id: 1}) %}
+                    <form method="POST" action="{{ url_for('projects.undo_batch', batch_id=log.batch_id) }}" class="d-inline"
+                          onsubmit="return confirm('Annuler ce lot de modifications ?');">
+                        <button type="submit" class="btn btn-sm btn-outline-dark">Annuler le lot</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="text-center text-muted py-3">Aucun historique.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endblock %}

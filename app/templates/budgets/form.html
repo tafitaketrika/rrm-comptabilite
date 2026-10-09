@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+{% block title %}{% if budget %}Modifier le budget{% else %}Nouveau budget{% endif %} – La Fourmi{% endblock %}
+{% block extra_css %}
+<style>
+#lines-table { table-layout: fixed; width: 100%; }
+#lines-table input, #lines-table select { font-size: 0.8rem; }
+#lines-table th { white-space: nowrap; font-size: 0.75rem; text-align: center; vertical-align: middle; }
+#lines-table .col-code { width: 88px; }
+#lines-table .col-desc { width: auto; min-width: 180px; }
+#lines-table .col-n { width: 40px; }
+#lines-table .col-u { width: 44px; }
+#lines-table .col-cost { width: 60px; }
+#lines-table .col-tot { width: 60px; }
+#lines-table .col-act { width: 64px; }
+/* pas de spinners number */
+#lines-table input[type=number]::-webkit-outer-spin-button,
+#lines-table input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#lines-table input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.chip { display: inline-flex; align-items: center; gap: 4px; background: #eee; border-radius: 12px; padding: 2px 8px; margin: 2px; font-size: 0.85rem; }
+.chip button { border: 0; background: transparent; padding: 0 2px; cursor: pointer; }
+</style>
+{% endblock %}
+{% block content %}
+<form method="POST" id="budget-form">
+    <!-- Modal En-tête -->
+    <div class="modal fade" id="headerModal" tabindex="-1" data-bs-backdrop="static">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title">En-tête du budget</h5>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">Titre</label>
+                            <input type="text" name="name" id="budget_title" class="form-control" required
+                                   value="{{ budget.name if budget else '' }}">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Période du</label>
+                            <input type="text" name="start_date" id="start_date" class="form-control date-mask-soft"
+                                   value="{{ budget.start_date.strftime('%d/%m/%y') if budget and budget.start_date else '' }}"
+                                   maxlength="8" inputmode="numeric">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">au</label>
+                            <input type="text" name="end_date" id="end_date" class="form-control date-mask-soft"
+                                   value="{{ budget.end_date.strftime('%d/%m/%y') if budget and budget.end_date else '' }}"
+                                   maxlength="8" inputmode="numeric">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Monnaie</label>
+                            <select name="currency" id="budget_currency" class="form-select">
+                                <option value="MGA" {% if not budget or (budget.currency or 'MGA') == 'MGA' %}selected{% endif %}>MGA</option>
+                                <option value="USD" {% if budget and budget.currency == 'USD' %}selected{% endif %}>USD</option>
+                                <option value="EUR" {% if budget and budget.currency == 'EUR' %}selected{% endif %}>EUR</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">À (destinataire)</label>
+                            <div id="to-chips" class="mb-1"></div>
+                            <button type="button" class="btn btn-sm btn-outline-dark" onclick="addPerson('to')">
+                                <i class="bi bi-plus-lg"></i> Ajouter
+                            </button>
+                            <select id="to-pick" class="form-select form-select-sm mt-1 d-none">
+                                <option value="">— Choisir —</option>
+                                {% for op in operators|default([]) %}
+                                <option value="{{ op.id }}">{{ op.code }} – {{ op.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div id="to-hiddens"></div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label">CC (copie)</label>
+                            <div id="cc-chips" class="mb-1"></div>
+                            <button type="button" class="btn btn-sm btn-outline-dark" onclick="addPerson('cc')">
+                                <i class="bi bi-plus-lg"></i> Ajouter
+                            </button>
+                            <select id="cc-pick" class="form-select form-select-sm mt-1 d-none">
+                                <option value="">— Choisir —</option>
+                                {% for op in operators|default([]) %}
+                                <option value="{{ op.id }}">{{ op.code }} – {{ op.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div id="cc-hiddens"></div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <a href="{{ url_for('budgets.list_budgets') }}" class="btn btn-outline-secondary">Annuler</a>
+                    <button type="button" class="btn btn-primary" id="btnHeaderOk">Continuer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="page-title mb-0" id="lines-title">{{ budget.name if budget else 'Budget' }}</h2>
+        <button type="button" class="btn btn-sm btn-outline-dark" data-bs-toggle="modal" data-bs-target="#headerModal">
+            <i class="bi bi-gear"></i> En-tête
+        </button>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <span id="lines-header-label">{{ budget.name if budget else 'Lignes' }}</span>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle" id="lines-table">
+                    <thead>
+                        <tr>
+                            <th class="col-code" rowspan="2">Code</th>
+                            <th class="col-desc" rowspan="2">Description</th>
+                            <th colspan="2">Quantité</th>
+                            <th colspan="2">Occurrence</th>
+                            <th colspan="2" id="cost-hdr">Coût MGA</th>
+                            <th class="col-act" rowspan="2"></th>
+                        </tr>
+                        <tr>
+                            <th class="col-n">N</th>
+                            <th class="col-u">Unité</th>
+                            <th class="col-n">N</th>
+                            <th class="col-u">Unité</th>
+                            <th class="col-cost">Unitaire</th>
+                            <th class="col-tot">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="lines-body">
+                        {% if lines %}
+                        {% for l in lines %}
+                        <tr>
+                            <td>
+                                <select name="line_account_id" class="form-select form-select-sm" required required>
+                                    <option value="">—</option>
+                                    {% for acc in accounts %}
+                                    <option value="{{ acc.id }}" {% if l.account_id == acc.id %}selected{% endif %}>{{ acc.code|format_code }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="text" name="line_description" class="form-control form-control-sm" value="{{ l.description }}" required></td>
+                            <td><input type="text" inputmode="decimal" name="line_quantity" class="form-control form-control-sm calc-input" value="{{ l.quantity if l.quantity is not none else '' }}"></td>
+                            <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" value="{{ l.quantity_unit or '' }}"></td>
+                            <td><input type="text" inputmode="decimal" name="line_occurrence" class="form-control form-control-sm calc-input" value="{{ l.occurrence if l.occurrence is not none else '' }}"></td>
+                            <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" value="{{ l.occurrence_unit or '' }}"></td>
+                            <td><input type="text" inputmode="decimal" name="line_unit_cost" class="form-control form-control-sm calc-input" value="{{ l.unit_cost_mga if l.unit_cost_mga else '' }}"></td>
+                            <td class="text-end line-total">0</td>
+                            <td><button type="button" class="btn btn-sm btn-outline-dark py-0" onclick="this.closest('tr').remove(); recalcAll()">×</button></td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td>
+                                <select name="line_account_id" class="form-select form-select-sm" required required>
+                                    <option value="">—</option>
+                                    {% for acc in accounts %}
+                                    <option value="{{ acc.id }}">{{ acc.code|format_code }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input type="text" name="line_description" class="form-control form-control-sm" required></td>
+                            <td><input type="text" inputmode="decimal" name="line_quantity" class="form-control form-control-sm calc-input" value=""></td>
+                            <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" value=""></td>
+                            <td><input type="text" inputmode="decimal" name="line_occurrence" class="form-control form-control-sm calc-input" value=""></td>
+                            <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" value=""></td>
+                            <td><input type="text" inputmode="decimal" name="line_unit_cost" class="form-control form-control-sm calc-input" value=""></td>
+                            <td class="text-end line-total">0</td>
+                            <td></td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-2 d-flex gap-2 justify-content-end">
+                <button type="button" class="btn btn-sm btn-dark" onclick="addLine()" title="Ajouter une ligne"><i class="bi bi-plus-lg"></i></button>
+                <button type="button" class="btn btn-sm btn-outline-dark" onclick="removeLastLine()" title="Retirer la dernière ligne">×</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Envoyer</button>
+        <a href="{{ url_for('budgets.list_budgets') }}" class="btn btn-outline-secondary">Annuler</a>
+    </div>
+</form>
+
+<template id="line-tpl">
+<tr>
+    <td>
+        <select name="line_account_id" class="form-select form-select-sm" required required>
+            <option value="">—</option>
+            {% for acc in accounts %}
+            <option value="{{ acc.id }}">{{ acc.code|format_code }}</option>
+            {% endfor %}
+        </select>
+    </td>
+    <td><input type="text" name="line_description" class="form-control form-control-sm" required></td>
+    <td><input type="text" inputmode="decimal" name="line_quantity" class="form-control form-control-sm calc-input" value=""></td>
+    <td><input type="text" name="line_quantity_unit" class="form-control form-control-sm" value=""></td>
+    <td><input type="text" inputmode="decimal" name="line_occurrence" class="form-control form-control-sm calc-input" value=""></td>
+    <td><input type="text" name="line_occurrence_unit" class="form-control form-control-sm" value=""></td>
+    <td><input type="text" inputmode="decimal" name="line_unit_cost" class="form-control form-control-sm calc-input" value=""></td>
+    <td class="text-end line-total">0</td>
+    <td><button type="button" class="btn btn-sm btn-outline-dark py-0" onclick="this.closest('tr').remove(); recalcAll()">×</button></td>
+</tr>
+</template>
+{% endblock %}
+{% block extra_js %}
+<script>
+const selected = { to: new Set(), cc: new Set() };
+{% if budget and budget.assigned_to_json %}
+try { JSON.parse({{ budget.assigned_to_json|tojson }}).forEach(id => selected.to.add(String(id))); } catch(e){}
+{% endif %}
+{% if budget and budget.cc_to_json %}
+try { JSON.parse({{ budget.cc_to_json|tojson }}).forEach(id => selected.cc.add(String(id))); } catch(e){}
+{% endif %}
+
+function renderChips(kind) {
+  const box = document.getElementById(kind + '-chips');
+  const hid = document.getElementById(kind + '-hiddens');
+  const pick = document.getElementById(kind + '-pick');
+  box.innerHTML = ''; hid.innerHTML = '';
+  selected[kind].forEach(id => {
+    const opt = pick.querySelector('option[value="'+id+'"]');
+    const label = opt ? opt.textContent : id;
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = label + ' <button type="button">&times;</button>';
+    chip.querySelector('button').onclick = () => { selected[kind].delete(id); renderChips(kind); };
+    box.appendChild(chip);
+    const inp = document.createElement('input');
+    inp.type = 'hidden';
+    inp.name = kind === 'to' ? 'assigned_to' : 'cc_to';
+    inp.value = id;
+    hid.appendChild(inp);
+  });
+}
+function addPerson(kind) {
+  const pick = document.getElementById(kind + '-pick');
+  pick.classList.remove('d-none');
+  pick.onchange = function() {
+    if (this.value) { selected[kind].add(this.value); renderChips(kind); }
+    this.value = ''; this.classList.add('d-none');
+  };
+}
+renderChips('to'); renderChips('cc');
+
+function updateCostHeader() {
+  const c = document.getElementById('budget_currency').value;
+  document.getElementById('cost-hdr').textContent = 'Coût ' + c;
+}
+document.getElementById('budget_currency').addEventListener('change', updateCostHeader);
+updateCostHeader();
+
+function updateTitles() {
+  const t = document.getElementById('budget_title').value.trim() || 'Budget';
+  document.getElementById('lines-title').textContent = t;
+  document.getElementById('lines-header-label').textContent = t;
+}
+document.getElementById('btnHeaderOk').addEventListener('click', function() {
+  const t = document.getElementById('budget_title');
+  if (!t.value.trim()) { t.focus(); return; }
+  updateTitles();
+  bootstrap.Modal.getInstance(document.getElementById('headerModal')).hide();
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+  updateTitles();
+  {% if not budget %}
+  new bootstrap.Modal(document.getElementById('headerModal')).show();
+  {% endif %}
+});
+
+// Date mask: slashes only, NO auto-correction of day/month
+document.querySelectorAll('.date-mask-soft').forEach(el => {
+  el.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g, '').slice(0, 6);
+    let out = v.slice(0, 2);
+    if (v.length >= 3) out += '/' + v.slice(2, 4);
+    if (v.length >= 5) out += '/' + v.slice(4, 6);
+    this.value = out;
+  });
+});
+
+function recalcAll() {
+  document.querySelectorAll('#lines-body tr').forEach(tr => {
+    const q = parseFloat((tr.querySelector('[name=line_quantity]')||{}).value) || 0;
+    const o = parseFloat((tr.querySelector('[name=line_occurrence]')||{}).value) || 0;
+    const c = parseFloat((tr.querySelector('[name=line_unit_cost]')||{}).value) || 0;
+    const tot = q * o * c;
+    const cell = tr.querySelector('.line-total');
+    if (cell) cell.textContent = isFinite(tot) ? tot.toLocaleString('fr-FR') : '0';
+  });
+}
+document.getElementById('lines-body').addEventListener('input', e => {
+  if (e.target.classList.contains('calc-input')) recalcAll();
+});
+function addLine() {
+  const tpl = document.getElementById('line-tpl');
+  document.getElementById('lines-body').appendChild(tpl.content.cloneNode(true));
+  recalcAll();
+}
+function removeLastLine() {
+  const rows = document.querySelectorAll('#lines-body tr');
+  if (rows.length > 1) rows[rows.length - 1].remove();
+  recalcAll();
+}
+recalcAll();
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Rapports - RRM Antsirabe{% endblock %}
+
+{% block content %}
+<h2 class="mb-4"><i class="bi bi-bar-chart"></i> Rapports</h2>
+
+<div class="row g-3">
+    <div class="col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-table"></i> Balance des comptes</h5>
+                <p class="card-text text-muted">Résumé des soldes (Débit / Crédit / Solde) par compte et par devise.</p>
+                <a href="{{ url_for('reports.trial_balance') }}" class="btn btn-primary">Ouvrir</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

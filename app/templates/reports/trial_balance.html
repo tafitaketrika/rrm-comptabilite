@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+{% block title %}Balance des comptes (Résumé) – La Fourmi{% endblock %}
+{% block extra_css %}
+<style>
+.tb-sec td { font-weight: 700; text-decoration: underline; text-decoration-style: double; text-underline-offset: 3px; background: #e8e8e8 !important; }
+.tb-chap td { font-weight: 700; background: #efefef !important; }
+.tb-par td { text-decoration: underline; text-underline-offset: 2px; background: #f5f5f5 !important; }
+.tb-leaf td { background: #fafafa; }
+#tb-table { table-layout: fixed; width: 100%; font-size: 0.85rem; }
+#tb-table th, #tb-table td { padding: 0.25rem 0.3rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tb-table .c-code { width: 108px; cursor: pointer; }
+#tb-table .c-name { width: auto; min-width: 220px; text-align: left; }
+#tb-table .c-amt { width: 72px; text-align: right; }
+.tb-toggle { display: inline-block; width: 14px; color: #555; }
+.date-filter input { width: 90px; display: inline-block; }
+/* popover intitulé */
+.tb-tip {
+  position: fixed; z-index: 2000; max-width: 420px;
+  background: #111; color: #fff; padding: 8px 12px; border-radius: 6px;
+  font-size: 0.85rem; pointer-events: none; display: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+    <h2 class="page-title mb-0"><i class="bi bi-table"></i> Balance des comptes (Résumé)</h2>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <form method="GET" class="d-flex align-items-center gap-2 date-filter mb-0">
+            <label class="small mb-0">De</label>
+            <input type="text" name="date_from" class="form-control form-control-sm date-mask-soft"
+                   value="{{ date_from }}" placeholder="jj/mm/aa" maxlength="8" inputmode="numeric">
+            <label class="small mb-0">à</label>
+            <input type="text" name="date_to" class="form-control form-control-sm date-mask-soft"
+                   value="{{ date_to }}" placeholder="jj/mm/aa" maxlength="8" inputmode="numeric">
+            <button type="submit" class="btn btn-sm btn-dark">Filtrer</button>
+            {% if date_from or date_to %}
+            <a href="{{ url_for('reports.trial_balance') }}" class="btn btn-sm btn-outline-secondary">Tout</a>
+            {% endif %}
+        </form>
+        <button type="button" class="btn btn-sm btn-outline-dark" id="btnExpandAll">Déplier</button>
+        <button type="button" class="btn btn-sm btn-outline-dark" id="btnCollapseAll">Replier</button>
+        <a href="{{ url_for('reports.index') }}" class="btn btn-outline-secondary btn-sm">Retour</a>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" id="tb-table">
+                <thead>
+                    <tr>
+                        <th class="c-code" rowspan="2">Code</th>
+                        <th class="c-name" rowspan="2">Intitulé</th>
+                        <th colspan="3" class="text-center">MGA</th>
+                        <th colspan="3" class="text-center">USD</th>
+                        <th colspan="3" class="text-center">EUR</th>
+                    </tr>
+                    <tr>
+                        <th class="c-amt">Solde</th>
+                        <th class="c-amt">Crédit</th>
+                        <th class="c-amt">Débit</th>
+                        <th class="c-amt">Solde</th>
+                        <th class="c-amt">Crédit</th>
+                        <th class="c-amt">Débit</th>
+                        <th class="c-amt">Solde</th>
+                        <th class="c-amt">Crédit</th>
+                        <th class="c-amt">Débit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% set ns = namespace(sec_id=0, chap_id=0, par_id=0) %}
+                    {% for r in rows %}
+                    {% set solde_mga = (r.debit_mga or 0) - (r.credit_mga or 0) %}
+                    {% set solde_usd = (r.debit_usd or 0) - (r.credit_usd or 0) %}
+                    {% set solde_eur = (r.debit_eur or 0) - (r.credit_eur or 0) %}
+                    {% if r.cls == 'sec' %}
+                        {% set ns.sec_id = ns.sec_id + 1 %}
+                        {% set key = 's' ~ ns.sec_id %}
+                        {% set parent = '' %}
+                    {% elif r.cls == 'chap' %}
+                        {% set ns.chap_id = ns.chap_id + 1 %}
+                        {% set key = 'c' ~ ns.chap_id %}
+                        {% set parent = 's' ~ ns.sec_id %}
+                    {% elif r.cls == 'par' %}
+                        {% set ns.par_id = ns.par_id + 1 %}
+                        {% set key = 'p' ~ ns.par_id %}
+                        {% set parent = 'c' ~ ns.chap_id %}
+                    {% else %}
+                        {% set key = '' %}
+                        {% set parent = 'p' ~ ns.par_id %}
+                    {% endif %}
+                    <tr class="tb-{{ r.cls }}"
+                        {% if key %}data-key="{{ key }}" data-open="1" onclick="toggleTb(this)"{% endif %}
+                        {% if parent %}data-parent="{{ parent }}"{% endif %}>
+                        <td class="c-code">
+                            {% if r.cls in ('sec', 'chap', 'par') %}<span class="tb-toggle">▾</span> {% endif %}
+                            {% if r.level == 1 %}{{ r.norm }}
+                            {% elif r.level == 2 %}{{ r.norm[:2] }}.{{ r.norm[2:4] }}
+                            {% elif r.level == 3 %}{{ r.norm[:2] }}.{{ r.norm[2:4] }}.{{ r.norm[4:6] }}
+                            {% else %}{{ r.code|format_code }}{% endif %}
+                        </td>
+                        <td class="c-name tb-intitule" data-full="{{ r.name }}">{{ r.name }}</td>
+                        <td class="c-amt">{{ '{:,.0f}'.format(solde_mga).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.0f}'.format(r.credit_mga or 0).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.0f}'.format(r.debit_mga or 0).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.2f}'.format(solde_usd).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.2f}'.format(r.credit_usd or 0).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.2f}'.format(r.debit_usd or 0).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.2f}'.format(solde_eur).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.2f}'.format(r.credit_eur or 0).replace(',', ' ') }}</td>
+                        <td class="c-amt">{{ '{:,.2f}'.format(r.debit_eur or 0).replace(',', ' ') }}</td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center text-muted py-4">Aucune donnée.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="tb-tip" id="tbTip"></div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function toggleTb(row) {
+  const open = row.dataset.open !== '0';
+  row.dataset.open = open ? '0' : '1';
+  const tog = row.querySelector('.tb-toggle');
+  if (tog) tog.textContent = open ? '▸' : '▾';
+  document.querySelectorAll('#tb-table tr[data-parent]').forEach(tr => {
+    let p = tr.dataset.parent;
+    let hide = false;
+    while (p) {
+      const parent = document.querySelector('#tb-table tr[data-key="'+p+'"]');
+      if (!parent) break;
+      if (parent.dataset.open === '0') { hide = true; break; }
+      p = parent.dataset.parent;
+    }
+    tr.style.display = hide ? 'none' : '';
+  });
+}
+document.getElementById('btnExpandAll')?.addEventListener('click', () => {
+  document.querySelectorAll('#tb-table tr[data-key]').forEach(r => {
+    r.dataset.open = '1';
+    const t = r.querySelector('.tb-toggle'); if (t) t.textContent = '▾';
+  });
+  document.querySelectorAll('#tb-table tr[data-parent]').forEach(tr => tr.style.display = '');
+});
+document.getElementById('btnCollapseAll')?.addEventListener('click', () => {
+  document.querySelectorAll('#tb-table tr[data-key]').forEach(r => {
+    r.dataset.open = '0';
+    const t = r.querySelector('.tb-toggle'); if (t) t.textContent = '▸';
+  });
+  document.querySelectorAll('#tb-table tr[data-parent]').forEach(tr => tr.style.display = 'none');
+});
+
+// Pop intitulé complet au survol
+const tip = document.getElementById('tbTip');
+document.querySelectorAll('.tb-intitule').forEach(el => {
+  el.addEventListener('mouseenter', e => {
+    const full = el.dataset.full || el.textContent;
+    if (!full) return;
+    tip.textContent = full;
+    tip.style.display = 'block';
+  });
+  el.addEventListener('mousemove', e => {
+    tip.style.left = (e.clientX + 12) + 'px';
+    tip.style.top = (e.clientY + 14) + 'px';
+  });
+  el.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+});
+
+document.querySelectorAll('.date-mask-soft').forEach(el => {
+  el.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g, '').slice(0, 6);
+    let out = v.slice(0, 2);
+    if (v.length >= 3) out += '/' + v.slice(2, 4);
+    if (v.length >= 5) out += '/' + v.slice(4, 6);
+    this.value = out;
+  });
+});
+</script>
+{% endblock %}

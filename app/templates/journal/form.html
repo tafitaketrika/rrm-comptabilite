@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle écriture – La Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+.page-title { font-size: 12pt; margin-bottom: 0.5rem !important; }
+.form-label { font-size: 10pt; margin-bottom: 0.15rem; }
+.account-desc {
+  min-height: 30px; height: 30px; padding: 4px 8px;
+  background: #f5f5f5; border-radius: 4px; color: #333;
+  border: 1px solid #dee2e6; font-size: 10pt; line-height: 20px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.form-control, .form-select { height: 30px; padding: 2px 8px; font-size: 10pt; }
+.card-body { padding: 0.75rem 1rem !important; }
+.row.g-compact > * { padding-top: 0.2rem; padding-bottom: 0.2rem; }
+.amount-words { margin-top: 1px; font-size: 9pt; color: #555; min-height: 1em; }
+.form-text { font-size: 9pt; margin-top: 1px; }
+.btn-lg { padding: 0.35rem 0.9rem; font-size: 10pt; }
+.entry-form-wrap { max-width: 720px; }
+/* Bouton fichier en français */
+input[type=file]::-webkit-file-upload-button {
+  content: 'Choisir';
+}
+input[type=file]::file-selector-button {
+  font-size: 10pt;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 class="page-title mb-2"><i class="bi bi-plus-circle"></i> Nouvelle écriture</h2>
+
+<form method="POST" enctype="multipart/form-data" id="entry-form" class="entry-form-wrap">
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-compact g-2 align-items-start">
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Date</label>
+                    <input type="text" name="entry_date" id="entry_date" class="form-control date-mask" required value="{{ today_display }}" placeholder="" maxlength="10" autocomplete="off">
+                </div>
+                <div class="col-md-9 d-none d-md-block"></div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Compte de crédit</label>
+                    <input type="text" name="credit_account_code" id="credit_code" class="form-control account-code-input"
+                           list="accounts-list" placeholder="" autocomplete="off" required>
+                    <input type="hidden" name="credit_account_id" id="credit_account_id">
+                    <div class="text-danger small" id="credit_err" style="display:none;"></div>
+                </div>
+                <div class="col-12 col-md-9">
+                    <label class="form-label">Intitulé</label>
+                    <div class="account-desc" id="credit_desc"></div>
+                </div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Montant</label>
+                    <input type="text" name="amount" id="amount" class="form-control amount-input" required
+                           inputmode="decimal" placeholder="" value="">
+                    <div class="amount-words" id="amount_words"></div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Monnaie</label>
+                    <select name="currency" id="currency" class="form-select">
+                        <option value="MGA" selected>MGA</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-none d-md-block"></div>
+
+                <div class="col-12">
+                    <label class="form-label">Description de l'opération</label>
+                    <input type="text" name="description" class="form-control" required maxlength="500"
+                           placeholder="">
+                </div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Compte de débit</label>
+                    <input type="text" name="debit_account_code" id="debit_code" class="form-control account-code-input"
+                           list="accounts-list" placeholder="" autocomplete="off" required>
+                    <input type="hidden" name="debit_account_id" id="debit_account_id">
+                    <div class="text-danger small" id="debit_err" style="display:none;"></div>
+                </div>
+                <div class="col-12 col-md-9">
+                    <label class="form-label">Intitulé</label>
+                    <div class="account-desc" id="debit_desc"></div>
+                </div>
+
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Montant</label>
+                    <input type="text" name="amount_debit" id="amount_debit" class="form-control amount-input"
+                           inputmode="decimal" placeholder="" value="">
+                                    </div>
+                <div class="col-6 col-md-3">
+                    <label class="form-label">Monnaie</label>
+                    <select name="currency_debit" id="currency_debit" class="form-select">
+                        <option value="MGA" selected>MGA</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-none d-md-block"></div>
+
+                <div class="col-12">
+                    <label class="form-label">Pièce jointe</label>
+                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                        <input type="file" name="attachments" id="attachments" class="d-none" multiple
+                               accept=".jpg,.jpeg,.png,.gif,.pdf,.webp,image/*">
+                        <button type="button" class="btn btn-outline-dark" id="btnChooseFiles">
+                            <i class="bi bi-folder2-open"></i> Choisir
+                        </button>
+                        <span id="filesLabel" class="small text-muted">Aucun fichier choisi</span>
+                        <button type="button" class="btn btn-outline-dark" id="btnCamera" title="Appareil photo">
+                            <i class="bi bi-camera-fill"></i> Appareil photo
+                        </button>
+                    </div>
+                    <input type="file" id="cameraInput" accept="image/*" capture="environment" class="d-none">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <datalist id="accounts-list">
+        {% for acc in accounts %}
+        <option value="{{ acc.code }}" data-id="{{ acc.id }}" data-name="{{ acc.name }}" data-fmt="{{ acc.code|format_code }}"></option>
+        {% endfor %}
+    </datalist>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary btn-lg">
+            <i class="bi bi-check-lg"></i> Enregistrer
+        </button>
+        <a href="{{ url_for('journal.list_entries') }}" class="btn btn-outline-secondary btn-lg">Annuler</a>
+    </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Libellé fichier "Choisir"
+document.addEventListener('DOMContentLoaded', function() {
+  const fi = document.getElementById('attachments');
+  const btn = document.getElementById('btnChooseFiles');
+  const lab = document.getElementById('filesLabel');
+  if (btn && fi) {
+    btn.addEventListener('click', () => fi.click());
+    fi.addEventListener('change', () => {
+      const n = fi.files ? fi.files.length : 0;
+      lab.textContent = n === 0 ? 'Aucun fichier choisi' : (n === 1 ? fi.files[0].name : (n + ' fichiers'));
+    });
+  }
+});
+
+const ACC = {
+{% for acc in accounts %}
+  "{{ acc.code }}": {id: {{ acc.id }}, name: {{ acc.name|tojson }}, fmt: {{ (acc.code|format_code)|tojson }}},
+{% endfor %}
+};
+
+function normCode(s) {
+  return (s || '').replace(/[\s.\-]/g, '');
+}
+
+function fmtAccount(code) {
+  let s = String(code || '').replace(/\D/g, '');
+  if (!s) return '';
+  if (s.length === 8 && s[0] !== '0') s = '0' + s;
+  else if (s.length % 2 === 1 && s.length < 7) s = '0' + s;
+  if (s.length === 9) return s.slice(0,2)+'.'+s.slice(2,4)+'.'+s.slice(4,6)+'.'+s.slice(6,9);
+  const p = [];
+  for (let i = 0; i < s.length; i += 2) p.push(s.slice(i, i+2));
+  return p.join('.');
+}
+function resolveAccount(inputEl, hiddenId, descEl, reformat) {
+  const raw = inputEl.value.trim();
+  const code = normCode(raw);
+  let found = ACC[code] || ACC[raw];
+  if (!found) {
+    for (const [k, v] of Object.entries(ACC)) {
+      if (normCode(k) === code || k.endsWith(code)) { found = v; break; }
+    }
+  }
+  if (found) {
+    hiddenId.value = found.id;
+    descEl.textContent = found.name;
+    if (reformat) inputEl.value = found.fmt || fmtAccount(code);
+  } else {
+    hiddenId.value = '';
+    descEl.textContent = raw ? 'Compte introuvable' : '';
+    if (reformat && code) inputEl.value = fmtAccount(code);
+  }
+}
+
+document.getElementById('credit_code').addEventListener('input', function() {
+  resolveAccount(this, document.getElementById('credit_account_id'), document.getElementById('credit_desc'), false);
+});
+document.getElementById('credit_code').addEventListener('blur', function() {
+  resolveAccount(this, document.getElementById('credit_account_id'), document.getElementById('credit_desc'), true);
+});
+document.getElementById('debit_code').addEventListener('input', function() {
+  resolveAccount(this, document.getElementById('debit_account_id'), document.getElementById('debit_desc'), false);
+});
+document.getElementById('debit_code').addEventListener('blur', function() {
+  resolveAccount(this, document.getElementById('debit_account_id'), document.getElementById('debit_desc'), true);
+});
+
+function formatAmount(val, currency) {
+  let n = String(val).replace(/\s/g, '').replace(',', '.');
+  if (!n || isNaN(n)) return '';
+  const num = parseFloat(n);
+  if (currency === 'MGA') {
+    return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  }
+  return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+}
+function unformatAmount(val) {
+  return String(val).replace(/\s/g, '').replace(',', '.');
+}
+
+const UNITS = ['','un','deux','trois','quatre','cinq','six','sept','huit','neuf','dix','onze','douze','treize','quatorze','quinze','seize','dix-sept','dix-huit','dix-neuf'];
+const TENS = ['','dix','vingt','trente','quarante','cinquante','soixante','soixante','quatre-vingt','quatre-vingt'];
+function under100(n) {
+  if (n < 20) return UNITS[n];
+  const t = Math.floor(n/10), u = n%10;
+  if (t === 7 || t === 9) return TENS[t] + (u === 1 && t === 7 ? '-et-' : '-') + UNITS[10+u];
+  if (u === 0) return t === 8 ? 'quatre-vingts' : TENS[t];
+  return TENS[t] + (u === 1 && t < 8 ? '-et-un' : '-' + UNITS[u]);
+}
+function under1000(n) {
+  if (n < 100) return under100(n);
+  const h = Math.floor(n/100), r = n%100;
+  let s = h === 1 ? 'cent' : UNITS[h] + ' cent';
+  if (r === 0 && h > 1) s += 's';
+  else if (r) s += ' ' + under100(r);
+  return s;
+}
+function numberToFrench(n) {
+  n = Math.round(Math.abs(n));
+  if (n === 0) return 'zéro';
+  if (n < 1000) return under1000(n);
+  if (n < 1000000) {
+    const m = Math.floor(n/1000), r = n%1000;
+    let s = m === 1 ? 'mille' : under1000(m) + ' mille';
+    if (r) s += ' ' + under1000(r);
+    return s;
+  }
+  const mil = Math.floor(n/1000000), r = n%1000000;
+  let s = mil === 1 ? 'un million' : under1000(mil) + ' millions';
+  if (r) s += ' ' + numberToFrench(r);
+  return s;
+}
+
+document.getElementById('amount').addEventListener('input', function() {
+  const cur = document.getElementById('currency').value;
+  const raw = unformatAmount(this.value);
+  if (raw === '' || isNaN(raw)) {
+    document.getElementById('amount_words').textContent = '';
+    return;
+  }
+  document.getElementById('amount_words').textContent = numberToFrench(parseFloat(raw)) + (cur === 'MGA' ? ' ariary' : ' ' + cur);
+  const deb = document.getElementById('amount_debit');
+  if (deb && !deb.dataset.touched) deb.value = formatAmount(raw, cur);
+});
+document.getElementById('amount').addEventListener('blur', function() {
+  const cur = document.getElementById('currency').value;
+  const raw = unformatAmount(this.value);
+  if (raw !== '' && !isNaN(raw)) this.value = formatAmount(raw, cur);
+});
+document.getElementById('amount_debit')?.addEventListener('input', function() { this.dataset.touched = '1'; });
+document.getElementById('amount_debit')?.addEventListener('blur', function() {
+  const cur = document.getElementById('currency_debit').value;
+  const raw = unformatAmount(this.value);
+  if (raw !== '' && !isNaN(raw)) this.value = formatAmount(raw, cur);
+});
+document.getElementById('currency').addEventListener('change', function() {
+  const a = document.getElementById('amount');
+  if (a.value) {
+    a.value = formatAmount(unformatAmount(a.value), this.value);
+    a.dispatchEvent(new Event('input'));
+  }
+  const cd = document.getElementById('currency_debit');
+  if (cd && !document.getElementById('amount_debit')?.dataset.touched) cd.value = this.value;
+});
+
+document.getElementById('entry-form').addEventListener('submit', function(e) {
+  if (!validateAccounts()) {
+    e.preventDefault();
+    return;
+  }
+  const c = document.getElementById('credit_account_id').value;
+  const d = document.getElementById('debit_account_id').value;
+  if (!c || !d) {
+    e.preventDefault();
+    validateAccounts();
+    return;
+  }
+  const amt = unformatAmount(document.getElementById('amount').value);
+  document.getElementById('amount').value = amt;
+  const deb = document.getElementById('amount_debit');
+  if (deb) deb.value = unformatAmount(deb.value) || amt;
+  ['credit_code','debit_code'].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.value = normCode(el.value);
+  });
+});
+
+document.getElementById('btnCamera')?.addEventListener('click', () => document.getElementById('cameraInput').click());
+document.getElementById('cameraInput')?.addEventListener('change', function() {
+  const main = document.getElementById('attachments');
+  if (!this.files.length) return;
+  const dt = new DataTransfer();
+  for (const f of main.files) dt.items.add(f);
+  for (const f of this.files) dt.items.add(f);
+  main.files = dt.files;
+});
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el._hideTimer) clearTimeout(el._hideTimer);
+  if (msg) {
+    el.style.display = 'block';
+    el.textContent = msg;
+    el._hideTimer = setTimeout(function() {
+      el.style.display = 'none';
+      el.textContent = '';
+    }, 4000);
+  } else {
+    el.style.display = 'none';
+    el.textContent = '';
+  }
+}
+function validateAccounts() {
+  const cId = document.getElementById('credit_account_id').value;
+  const dId = document.getElementById('debit_account_id').value;
+  const cRaw = (document.getElementById('credit_code').value || '').trim();
+  const dRaw = (document.getElementById('debit_code').value || '').trim();
+  let ok = true;
+  if (cRaw && !cId) { showErr('credit_err', 'Compte introuvable — saisie non valide'); ok = false; }
+  else showErr('credit_err', '');
+  if (dRaw && !dId) { showErr('debit_err', 'Compte introuvable — saisie non valide'); ok = false; }
+  else if (cId && dId && String(cId) === String(dId)) {
+    showErr('debit_err', 'Le compte de débit doit être différent du compte de crédit');
+    ok = false;
+  } else if (!dRaw || dId) {
+    // clear only if no other error
+    if (!(dRaw && !dId)) showErr('debit_err', '');
+  }
+  return ok;
+}
+document.getElementById('credit_code')?.addEventListener('blur', validateAccounts);
+document.getElementById('debit_code')?.addEventListener('blur', validateAccounts);
+
+</script>
+{% endblock %}

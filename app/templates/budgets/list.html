@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Budgets – La Fourmi{% endblock %}
+{% block extra_css %}
+<style>
+.bud-list { table-layout: fixed; width: 100%; }
+.bud-list th, .bud-list td {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 9.5pt; padding: 0.3rem 0.4rem; text-align: center; vertical-align: middle;
+}
+.bud-list td.titre-cell { text-align: left; white-space: nowrap; }
+.bud-list th:nth-child(1), .bud-list td:nth-child(1) { width: 72px; } /* Date */
+.bud-list th:nth-child(2), .bud-list td:nth-child(2) { width: 64px; } /* De→À */
+.bud-list th:nth-child(3), .bud-list td:nth-child(3) { width: auto; min-width: 140px; } /* Titre */
+.bud-list th:nth-child(4), .bud-list td:nth-child(4) { width: 130px; } /* Période */
+.bud-list th:nth-child(5), .bud-list td:nth-child(5) { width: 56px; } /* Monnaie */
+.bud-list th:nth-child(6), .bud-list td:nth-child(6) { width: 80px; } /* Total */
+.bud-list th:nth-child(7), .bud-list td:nth-child(7) { width: 72px; } /* Détails */
+.user-ico { font-size: 1.1rem; color: #333; cursor: default; }
+.user-ico + .user-ico { margin-left: 2px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="page-title mb-0"><i class="bi bi-clipboard-data"></i> Budgets</h2>
+    {% if can_edit %}
+    <a href="{{ url_for('budgets.new_budget') }}" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus-lg"></i> Nouveau
+    </a>
+    {% endif %}
+</div>
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-hover mb-0 align-middle bud-list">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th title="De → À">De → À</th>
+                    <th>Titre</th>
+                    <th>Période</th>
+                    <th>Monnaie</th>
+                    <th>Total</th>
+                    <th>Détails</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for b in budgets %}
+                <tr>
+                    <td>{{ b.created_at.strftime('%d/%m/%y') if b.created_at else '—' }}</td>
+                    <td>
+                        {% set from_name = b.created_by.full_name if b.created_by else '—' %}
+                        {% set to_names = b.recipient_names() if b.recipient_names is defined else '' %}
+                        <span class="user-ico" title="De : {{ from_name }}"><i class="bi bi-person-fill"></i></span>
+                        <span class="user-ico" title="À : {{ to_names or '—' }}"><i class="bi bi-person"></i></span>
+                    </td>
+                    <td class="titre-cell" title="{{ b.name }}">{{ b.name }}</td>
+                    <td>
+                        {% if b.start_date and b.end_date %}
+                            {{ b.start_date.strftime('%d/%m/%y') }} → {{ b.end_date.strftime('%d/%m/%y') }}
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{{ b.currency or 'MGA' }}</td>
+                    <td class="text-nowrap">
+                        {% if (b.currency or 'MGA') == 'MGA' %}
+                            {{ '{:,.0f}'.format(b.total_mga or 0).replace(',', ' ') }}
+                        {% elif b.currency == 'USD' %}
+                            {{ '{:,.2f}'.format(b.total_usd or 0) }}
+                        {% else %}
+                            {{ '{:,.2f}'.format(b.total_usd or 0) }}
+                        {% endif %}
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <a href="{{ url_for('budgets.view_budget', budget_id=b.id) }}" class="btn btn-sm btn-outline-dark py-0" title="Voir"><i class="bi bi-eye"></i></a>
+                        {% if can_edit %}
+                        <a href="{{ url_for('budgets.edit_budget', budget_id=b.id) }}" class="btn btn-sm btn-outline-dark py-0" title="Modifier"><i class="bi bi-pencil"></i></a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center text-muted py-4">Aucun budget.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

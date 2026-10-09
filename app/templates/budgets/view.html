@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}{{ budget.name }} – Budget{% endblock %}
+{% block extra_css %}
+<style>
+/* Couleurs plan comptable (tree-lvl-1..4) */
+.bud-sec, .bud-sec-row td { font-weight: 700; text-decoration: underline; text-decoration-style: double; text-underline-offset: 3px; background: #e8e8e8 !important; color: #111; cursor: pointer; }
+.bud-chap, .bud-chap-row td { font-weight: 700; background: #efefef !important; color: #111; cursor: pointer; }
+.bud-par, .bud-par-row td { text-decoration: underline; text-underline-offset: 2px; background: #f5f5f5 !important; color: #111; cursor: pointer; }
+.bud-leaf td { background: #fafafa; color: #111; }
+.bud-toggle { display: inline-block; width: 18px; color: #666; }
+.bud-children.collapsed { display: none; }
+#budgetTree { table-layout: fixed; width: 100%; }
+#budgetTree th, #budgetTree td {
+  font-size: 0.8rem; padding: 0.3rem 0.35rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#budgetTree th { text-align: center; vertical-align: middle; }
+#budgetTree .c-code { width: 100px; white-space: nowrap; }
+#budgetTree .c-desc { width: auto; min-width: 200px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#budgetTree .c-n { width: 36px; text-align: center; }
+#budgetTree .c-u { width: 40px; text-align: center; }
+#budgetTree .c-cost { width: 58px; text-align: right; }
+#budgetTree th, #budgetTree td { padding: 0.25rem 0.2rem !important; }
+.period-top { font-size: 0.9rem; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-start mb-3 flex-wrap gap-2">
+    <h2 class="page-title mb-0"><i class="bi bi-clipboard-data"></i> {{ budget.name }}</h2>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+        <div class="period-top text-muted border rounded px-2 py-1 bg-white">
+            Période :
+            {% if budget.start_date and budget.end_date %}
+                {{ budget.start_date.strftime('%d/%m/%y') }} → {{ budget.end_date.strftime('%d/%m/%y') }}
+            {% else %}—{% endif %}
+        </div>
+        {% if can_edit %}
+        <a href="{{ url_for('budgets.edit_budget', budget_id=budget.id) }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil"></i> Modifier
+        </a>
+        {% endif %}
+        <a href="{{ url_for('budgets.list_budgets') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Retour
+        </a>
+    </div>
+</div>
+
+{% set cur = budget.currency or 'MGA' %}
+<div class="card mb-4">
+    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+        <span>{{ budget.name }}</span>
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button" class="btn btn-sm btn-outline-light" id="btnExpandAll">Déplier</button>
+            <button type="button" class="btn btn-sm btn-outline-light" id="btnCollapseAll">Replier</button>
+            {% if budget.created_by %}
+            <span class="small" title="{{ budget.created_by.full_name }}">
+                <i class="bi bi-person-circle"></i>
+            </span>
+            {% endif %}
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0 align-middle" id="budgetTree">
+            <thead>
+                <tr>
+                    <th class="c-code" rowspan="2">Code</th>
+                    <th class="c-desc" rowspan="2">Description</th>
+                    <th colspan="2">Quantité</th>
+                    <th colspan="2">Occurrence</th>
+                    <th colspan="2">Coût {{ cur }}</th>
+                </tr>
+                <tr>
+                    <th class="c-n">N</th>
+                    <th class="c-u">Unité</th>
+                    <th class="c-n">N</th>
+                    <th class="c-u">Unité</th>
+                    <th class="c-cost">Unitaire</th>
+                    <th class="c-cost">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set ns = namespace(prev_sec='', prev_chap='', prev_par='', sec_id=0, chap_id=0, par_id=0) %}
+                {% for l in lines %}
+                    {% set code = (l.account.code if l.account else '')|string %}
+                    {% set code = code.replace('.', '').replace(' ', '') %}
+                    {% if code|length == 8 and not code.startswith('0') %}{% set code = '0' + code %}{% endif %}
+                    {% set sec = code[:2] if code|length >= 2 else '' %}
+                    {% set chap = code[:4] if code|length >= 4 else '' %}
+                    {% set par = code[:6] if code|length >= 6 else '' %}
+                    {% if sec and sec != ns.prev_sec %}
+                    {% set ns.sec_id = ns.sec_id + 1 %}
+                    {% set ns.prev_sec = sec %}{% set ns.prev_chap = '' %}{% set ns.prev_par = '' %}
+                    <tr class="bud-sec-row" data-level="1" data-key="s{{ ns.sec_id }}" onclick="toggleBud(this)">
+                        <td class="bud-sec"><span class="bud-toggle">▾</span> {{ sec[:2]|format_code if false else (sec[0:2] if sec|length>=2 else sec) }}</td>
+                        <td class="bud-sec" colspan="7">{{ section_names.get(sec, 'Section') if section_names is defined else 'Section' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if chap and chap != ns.prev_chap %}
+                    {% set ns.chap_id = ns.chap_id + 1 %}
+                    {% set ns.prev_chap = chap %}{% set ns.prev_par = '' %}
+                    <tr class="bud-chap-row" data-level="2" data-parent="s{{ ns.sec_id }}" data-key="c{{ ns.chap_id }}" onclick="toggleBud(this)">
+                        <td class="bud-chap" style="padding-left:1rem"><span class="bud-toggle">▾</span> {{ chap[0:2] }}.{{ chap[2:4] if chap|length>=4 else '' }}</td>
+                        <td class="bud-chap" colspan="7">{{ chapter_names.get(chap, 'Chapitre') if chapter_names is defined else 'Chapitre' }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if par and par != ns.prev_par %}
+                    {% set ns.par_id = ns.par_id + 1 %}
+                    {% set ns.prev_par = par %}
+                    <tr class="bud-par-row" data-level="3" data-parent="c{{ ns.chap_id }}" data-key="p{{ ns.par_id }}" onclick="toggleBud(this)">
+                        <td class="bud-par" style="padding-left:1.8rem"><span class="bud-toggle">▾</span> {{ par[0:2] }}.{{ par[2:4] }}.{{ par[4:6] if par|length>=6 else '' }}</td>
+                        <td class="bud-par" colspan="7">{{ paragraph_names.get(par, 'Paragraphe') if paragraph_names is defined else 'Paragraphe' }}</td>
+                    </tr>
+                    {% endif %}
+                    <tr class="bud-leaf" data-level="4" data-parent="p{{ ns.par_id }}">
+                        <td style="padding-left:2.4rem">{{ l.account.code|format_code if l.account else '—' }}</td>
+                        <td class="c-desc" title="{{ l.description }}">{{ l.description }}</td>
+                        <td class="c-n">{{ l.quantity if l.quantity is not none else '' }}</td>
+                        <td class="c-u">{{ l.quantity_unit or '' }}</td>
+                        <td class="c-n">{{ l.occurrence if l.occurrence is not none else '' }}</td>
+                        <td class="c-u">{{ l.occurrence_unit or '' }}</td>
+                        <td class="c-cost">
+                            {% if cur == 'MGA' %}{{ '{:,.0f}'.format(l.unit_cost_mga or 0).replace(',', ' ') }}
+                            {% else %}{{ '{:,.2f}'.format(l.unit_cost_usd or l.unit_cost_mga or 0) }}{% endif %}
+                        </td>
+                        <td class="c-cost">
+                            {% if cur == 'MGA' %}{{ '{:,.0f}'.format(l.total_cost_mga or 0).replace(',', ' ') }}
+                            {% else %}{{ '{:,.2f}'.format(l.total_cost_usd or l.total_cost_mga or 0) }}{% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                <tr><td colspan="8" class="text-center text-muted py-3">Aucune ligne.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+function toggleBud(row) {
+  const key = row.dataset.key;
+  const open = row.dataset.open !== '0';
+  row.dataset.open = open ? '0' : '1';
+  const tog = row.querySelector('.bud-toggle');
+  if (tog) tog.textContent = open ? '▸' : '▾';
+  document.querySelectorAll('#budgetTree tr[data-parent]').forEach(tr => {
+    let p = tr.dataset.parent;
+    let hide = false;
+    while (p) {
+      const parent = document.querySelector('#budgetTree tr[data-key="'+p+'"]');
+      if (!parent) break;
+      if (parent.dataset.open === '0') { hide = true; break; }
+      p = parent.dataset.parent;
+    }
+    tr.style.display = hide ? 'none' : '';
+  });
+}
+document.getElementById('btnExpandAll')?.addEventListener('click', () => {
+  document.querySelectorAll('#budgetTree tr[data-key]').forEach(r => { r.dataset.open = '1'; const t=r.querySelector('.bud-toggle'); if(t) t.textContent='▾'; });
+  document.querySelectorAll('#budgetTree tr[data-parent]').forEach(tr => tr.style.display = '');
+});
+document.getElementById('btnCollapseAll')?.addEventListener('click', () => {
+  document.querySelectorAll('#budgetTree tr[data-key]').forEach(r => { r.dataset.open = '0'; const t=r.querySelector('.bud-toggle'); if(t) t.textContent='▸'; });
+  document.querySelectorAll('#budgetTree tr[data-parent]').forEach(tr => tr.style.display = 'none');
+});
+</script>
+{% endblock %}

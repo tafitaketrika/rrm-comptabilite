@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}{% if task %}Modifier la tâche{% else %}Nouvelle tâche{% endif %} – La Fourmi{% endblock %}
+{% block content %}
+<h2 class="page-title mb-1">
+    {% if task %}Modifier la tâche{% else %}Nouvelle tâche{% endif %}
+</h2>
+<div class="text-muted small mb-3">Projet : {{ project.name }} · Site : {{ project.site.name if project.site else '—' }}</div>
+<form method="POST">
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-8">
+                    <label class="form-label">Titre</label>
+                    <input type="text" name="title" class="form-control" required value="{{ task.title if task else '' }}">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Priorité</label>
+                    <select name="priority" class="form-select">
+                        {% for p in priorities %}
+                        <option value="{{ p }}" {% if task and task.priority == p %}selected{% endif %}>{{ {'basse':'Basse','normale':'Normale','haute':'Haute'}[p] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Description</label>
+                    <textarea name="description" class="form-control" rows="2">{{ task.description if task else '' }}</textarea>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Début</label>
+                    <input type="text" name="start_date" class="form-control date-mask" maxlength="8"
+                           value="{{ task.start_date.strftime('%d/%m/%y') if task and task.start_date else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Fin</label>
+                    <input type="text" name="end_date" class="form-control date-mask" maxlength="8"
+                           value="{{ task.end_date.strftime('%d/%m/%y') if task and task.end_date else '' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Statut</label>
+                    <select name="status" class="form-select">
+                        {% for s in statuses %}
+                        <option value="{{ s }}" {% if task and task.status == s %}selected{% endif %}>{{ {'a_faire':'À faire','en_cours':'En cours','bloque':'Bloqué','termine':'Terminé'}[s] }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Assignés (plusieurs possibles)</label>
+                    <select name="assignees" class="form-select" multiple size="5">
+                        {% for u in users %}
+                        <option value="{{ u.id }}" {% if selected_assignees is defined and u.id in selected_assignees %}selected{% endif %}>{{ u.full_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Dépend de (tâches à finir avant)</label>
+                    <select name="depends_on" class="form-select" multiple size="5">
+                        {% for ot in other_tasks %}
+                        <option value="{{ ot.id }}" {% if selected_deps is defined and ot.id in selected_deps %}selected{% endif %}>{{ ot.title }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Enregistrer</button>
+        <a href="{{ url_for('projects.view_project', project_id=project.id) }}" class="btn btn-outline-secondary">Annuler</a>
+    </div>
+</form>
+
+{% if task and task.end_date %}
+<div class="card mt-4 border-dark">
+    <div class="card-header bg-dark text-white">Allonger la durée (P2)</div>
+    <div class="card-body">
+        <p class="small text-muted mb-2">
+            Fin actuelle : <strong>{{ task.end_date.strftime('%d/%m/%y') }}</strong>.
+            L’employé assigné ou un responsable peut prolonger la tâche.
+            (Le décalage automatique des autres tâches arrive en phase P3.)
+        </p>
+        <form method="GET" action="{{ url_for('projects.extend_task', task_id=task.id) }}" class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label">Jours supplémentaires</label>
+                <input type="number" name="days" class="form-control" min="1" max="365" value="1" style="width:100px">
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-dark">
+                    <i class="bi bi-calendar-plus"></i> Prévisualiser le décalage
+                </button>
+            </div>
+            <div class="col-auto">
+                <a href="{{ url_for('projects.task_history', task_id=task.id) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-clock-history"></i> Historique
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+{% block extra_js %}
+<script>
+document.querySelectorAll('.date-mask').forEach(function(el) {
+  el.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g, '').slice(0, 6);
+    let out = v.slice(0, 2);
+    if (v.length >= 3) out += '/' + v.slice(2, 4);
+    if (v.length >= 5) out += '/' + v.slice(4, 6);
+    this.value = out;
+  });
+});
+</script>
+{% endblock %}
