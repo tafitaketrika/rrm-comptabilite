@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111111">
+  <title>Hors ligne – RRM La Fourmi</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5; color: #111;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 100vh; margin: 0; padding: 24px; text-align: center;
+    }
+    .box {
+      background: #fff; border-radius: 12px; padding: 32px 28px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.08); max-width: 380px;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 12px; }
+    p { color: #555; font-size: 0.95rem; line-height: 1.5; margin: 0 0 20px; }
+    button {
+      background: #111; color: #fff; border: 0; border-radius: 8px;
+      padding: 10px 20px; font-size: 0.95rem; cursor: pointer;
+    }
+    .dot {
+      width: 12px; height: 12px; border-radius: 50%; background: #eb5a46;
+      display: inline-block; margin-right: 8px; vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h1><span class="dot"></span> Vous êtes hors ligne</h1>
+    <p>
+      La connexion Internet est indisponible.<br>
+      Les pages déjà consultées peuvent encore s’afficher.<br>
+      La saisie hors ligne complète arrivera en Phase 2.
+    </p>
+    <button type="button" onclick="location.reload()">Réessayer</button>
+  </div>
+</body>
+</html>

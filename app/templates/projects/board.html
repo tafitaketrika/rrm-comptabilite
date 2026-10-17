@@ -1,0 +1,733 @@
+{% extends "base.html" %}
+{% block title %}{{ board.name }} – Projets{% endblock %}
+{% block extra_css %}
+<style>
+/* Full-width board area */
+.trello-page { margin: -1rem -1.25rem; padding: 0; }
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 16px; background: rgba(0,0,0,.15);
+}
+.filter-bar select, .filter-bar input {
+  font-size: 0.8rem; border-radius: 6px; border: none; padding: 4px 8px;
+  max-width: 160px;
+}
+.filter-bar .filter-clear { color: #fff; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+.trello-card.filter-hide { display: none !important; }
+.trello-header {
+  background: rgba(0,0,0,.25); color: #fff; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.trello-header h1 { font-size: 1.15rem; margin: 0; font-weight: 700; }
+.trello-board-bg {
+  min-height: calc(100vh - 120px);
+  background: {% if board.background == 'blue' %}#0079bf{% elif board.background == 'green' %}#519839{% elif board.background == 'orange' %}#d29034{% elif board.background == 'purple' %}#89609e{% else %}#1a1a1a{% endif %};
+  padding: 12px 8px 24px;
+}
+.trello-lists {
+  display: flex; gap: 12px; align-items: flex-start;
+  overflow-x: auto; padding: 0 8px 8px; min-height: 400px;
+}
+.trello-list {
+  flex: 0 0 272px; width: 272px; background: #ebecf0;
+  border-radius: 12px; max-height: calc(100vh - 160px);
+  display: flex; flex-direction: column;
+}
+.trello-list-header {
+  padding: 10px 12px 4px; font-weight: 700; font-size: 0.9rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.trello-list-header input {
+  border: none; background: transparent; font-weight: 700; width: 100%;
+  font-size: 0.9rem; padding: 2px 4px; border-radius: 4px;
+}
+.trello-list-header input:focus { background: #fff; outline: 2px solid #0079bf; }
+.trello-cards {
+  overflow-y: auto; padding: 4px 8px; flex: 1; min-height: 40px;
+}
+.trello-cards.drag-over { background: #dfe3e8; border-radius: 8px; }
+.trello-card .cover {
+  height: 32px; border-radius: 8px 8px 0 0; margin: -8px -10px 8px; 
+}
+.trello-card {
+  background: #fff; border-radius: 8px; padding: 8px 10px;
+  margin-bottom: 8px; box-shadow: 0 1px 0 rgba(9,30,66,.25);
+  cursor: pointer; user-select: none;
+}
+.trello-card:hover { background: #f4f5f7; }
+.trello-card.dragging { opacity: .5; }
+.trello-card .labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.trello-card .label-chip {
+  height: 8px; min-width: 40px; border-radius: 4px;
+  font-size: 0; padding: 0;
+}
+.trello-card .label-chip.has-name {
+  height: auto; font-size: 0.7rem; color: #fff; padding: 1px 6px; font-weight: 600;
+}
+.trello-card .title { font-size: 0.9rem; color: #172b4d; }
+.trello-card .badges {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+  font-size: 0.75rem; color: #5e6c84; align-items: center;
+}
+.trello-card .badge-due { background: #f4f5f7; border-radius: 3px; padding: 1px 6px; }
+.trello-card .badge-due.overdue { background: #eb5a46; color: #fff; }
+.trello-card .avatars { display: flex; margin-left: auto; }
+.trello-card .avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: #333; color: #fff;
+  font-size: 0.7rem; display: flex; align-items: center; justify-content: center;
+  margin-left: -4px; border: 2px solid #fff; font-weight: 600;
+}
+.trello-add-card, .trello-add-list {
+  padding: 8px 12px; color: #5e6c84; cursor: pointer; border-radius: 8px;
+  font-size: 0.9rem;
+}
+.trello-add-card:hover, .trello-add-list:hover { background: rgba(9,30,66,.08); color: #172b4d; }
+.trello-add-list-box {
+  flex: 0 0 272px; background: rgba(255,255,255,.24); border-radius: 12px; padding: 8px;
+}
+.trello-add-list-box input { border-radius: 4px; }
+
+/* Modal carte – style Trello */
+.card-modal .modal-dialog { max-width: 768px; }
+.card-modal .modal-content { background: #f4f5f7; border: none; border-radius: 12px; }
+.card-modal .modal-body { padding: 16px 20px 24px; }
+.card-modal h2 { font-size: 1.25rem; font-weight: 700; color: #172b4d; }
+.card-modal .section-title {
+  font-size: 0.85rem; font-weight: 700; color: #172b4d;
+  margin: 16px 0 8px; display: flex; align-items: center; gap: 8px;
+}
+.card-modal textarea, .card-modal input[type=text] {
+  border-radius: 8px; border: none; background: #fff;
+  box-shadow: inset 0 0 0 2px transparent;
+}
+.card-modal textarea:focus, .card-modal input[type=text]:focus {
+  box-shadow: inset 0 0 0 2px #0079bf; outline: none;
+}
+.cl-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.cl-item.done span { text-decoration: line-through; color: #6b778c; }
+.progress { height: 8px; border-radius: 4px; background: #dfe1e6; }
+.progress-bar { background: #5ba4cf; }
+.comment-item { background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.color-dot {
+  width: 40px; height: 32px; border-radius: 4px; border: none; cursor: pointer;
+  margin: 2px;
+}
+.color-dot:hover { opacity: .85; transform: scale(1.05); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="trello-page">
+  <div class="trello-board-bg">
+    <div class="trello-header">
+      <a href="{{ url_for('projects.list_boards') }}" class="btn btn-sm btn-light">← Tableaux</a>
+      <a href="{{ url_for('projects.inbox') }}" class="btn btn-sm btn-light"><i class="bi bi-inbox"></i> Réception</a>
+      <a href="{{ url_for('projects.board_dashboard', board_id=board.id) }}" class="btn btn-sm btn-light"><i class="bi bi-bar-chart"></i> Tableau de bord</a>
+      <a href="{{ url_for('projects.board_timeline', board_id=board.id) }}" class="btn btn-sm btn-light"><i class="bi bi-distribute-horizontal"></i> Chronogramme</a>
+      <h1>{{ board.name }}</h1>
+      {% if board.site %}<span class="badge bg-light text-dark">{{ board.site.name }}</span>{% endif %}
+    </div>
+    <div class="filter-bar" id="filterBar">
+      <span style="color:#fff;font-size:0.8rem;font-weight:600;">Filtres</span>
+      <input type="search" id="filterText" placeholder="Rechercher…" oninput="applyFilters()">
+      <select id="filterMember" onchange="applyFilters()">
+        <option value="">Tous les membres</option>
+        {% for u in users %}
+        <option value="{{ u.id }}">{{ u.full_name }}</option>
+        {% endfor %}
+        <option value="none">Non attribué</option>
+      </select>
+      <select id="filterLabel" onchange="applyFilters()">
+        <option value="">Toutes étiquettes</option>
+        {% for col, hex in label_hex.items() %}
+        <option value="{{ col }}">{{ col }}</option>
+        {% endfor %}
+      </select>
+      <select id="filterDue" onchange="applyFilters()">
+        <option value="">Toutes échéances</option>
+        <option value="overdue">En retard</option>
+        <option value="has_due">Avec date</option>
+        <option value="no_due">Sans date</option>
+      </select>
+      <span class="filter-clear" onclick="clearFilters()">Effacer</span>
+    </div>
+
+    <div class="trello-lists" id="boardLists">
+      {% for lst in lists %}
+      <div class="trello-list" data-list-id="{{ lst.id }}">
+        <div class="trello-list-header">
+          <input type="text" value="{{ lst.name }}" data-list-id="{{ lst.id }}"
+                 onchange="renameList(this)" onkeydown="if(event.key==='Enter'){this.blur();event.preventDefault();}">
+          <span class="text-muted small">{{ lst.active_cards()|length }}</span>
+        </div>
+        <div class="trello-cards"
+             data-list-id="{{ lst.id }}"
+             ondragover="onDragOver(event)"
+             ondragleave="onDragLeave(event)"
+             ondrop="onDrop(event)">
+          {% for card in lst.active_cards() %}
+          <div class="trello-card"
+               draggable="true"
+               data-card-id="{{ card.id }}"
+               data-list-id="{{ lst.id }}"
+               data-members="{% for m in card.members %}{{ m.user_id }}{% if not loop.last %},{% endif %}{% endfor %}"
+               data-labels="{% for lab in card.labels %}{{ lab.color }}{% if not loop.last %},{% endif %}{% endfor %}"
+               data-due="{% if card.due_date %}{{ card.due_date.isoformat() }}{% endif %}"
+               data-overdue="{{ '1' if card.is_overdue() else '0' }}"
+               data-title="{{ card.title|lower }}"
+               ondragstart="onDragStart(event)"
+               ondragend="onDragEnd(event)"
+               onclick="openCard({{ card.id }})">
+            {% if card.cover_color %}
+            <div class="cover" style="background:{{ {'green':'#61bd4f','yellow':'#f2d600','orange':'#ff9f1a','red':'#eb5a46','purple':'#c377e0','blue':'#0079bf','sky':'#00c2e0','lime':'#51e898','pink':'#ff78cb','black':'#344563'}.get(card.cover_color, card.cover_color) }}"></div>
+            {% endif %}
+            {% if card.labels %}
+            <div class="labels">
+              {% for lab in card.labels %}
+              <span class="label-chip {% if lab.name %}has-name{% endif %}"
+                    style="background:{{ lab.color_hex() }}">{{ lab.name or '' }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <div class="title">{{ card.title }}</div>
+            <div class="badges">
+              {% if card.due_date %}
+              <span class="badge-due {% if card.is_overdue() %}overdue{% endif %}">
+                <i class="bi bi-clock"></i> {{ card.due_date.strftime('%d/%m/%y') }}
+              </span>
+              {% endif %}
+              {% set prog = card.checklist_progress() %}
+              {% if prog %}
+              <span><i class="bi bi-check2-square"></i> {{ prog[0] }}/{{ prog[1] }}</span>
+              {% endif %}
+              {% if card.attachments %}
+              <span><i class="bi bi-paperclip"></i> {{ card.attachments|length }}</span>
+              {% endif %}
+              {% if card.members %}
+              <div class="avatars">
+                {% for m in card.members[:4] %}
+                <span class="avatar" title="{{ m.user.full_name if m.user else '' }}">
+                  {{ (m.user.full_name or '?')[:1]|upper }}
+                </span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="trello-add-card" onclick="showAddCard(this, {{ lst.id }})">
+          <i class="bi bi-plus"></i> Ajouter une carte
+        </div>
+        <div class="p-2 d-none add-card-form">
+          <textarea class="form-control form-control-sm mb-1" rows="2" placeholder="Titre de la carte…"></textarea>
+          <button type="button" class="btn btn-sm btn-primary" onclick="submitAddCard(this, {{ lst.id }})">Ajouter</button>
+          <button type="button" class="btn btn-sm btn-link" onclick="hideAddCard(this)">×</button>
+        </div>
+      </div>
+      {% endfor %}
+
+      <div class="trello-add-list-box">
+        <div class="trello-add-list" id="addListBtn" onclick="showAddList()">
+          <i class="bi bi-plus"></i> Ajouter une liste
+        </div>
+        <div class="d-none" id="addListForm">
+          <input type="text" class="form-control form-control-sm mb-1" id="newListName" placeholder="Nom de la liste…">
+          <button type="button" class="btn btn-sm btn-primary" onclick="submitAddList()">Ajouter</button>
+          <button type="button" class="btn btn-sm btn-link text-white" onclick="hideAddList()">×</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal détail carte -->
+<div class="modal fade card-modal" id="cardModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-body">
+        <div class="d-flex justify-content-between align-items-start mb-2">
+          <div class="flex-grow-1 me-2">
+            <input type="text" id="cmTitle" class="form-control form-control-lg border-0 bg-transparent fw-bold px-0"
+                   onchange="saveCardField('title', this.value)">
+            <div class="small text-muted">Dans la liste <strong id="cmListName"></strong></div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+
+        <div class="row">
+          <div class="col-md-8">
+            <div class="section-title"><i class="bi bi-text-left"></i> Description</div>
+            <textarea id="cmDesc" class="form-control" rows="3" placeholder="Ajouter une description plus détaillée…"
+                      onchange="saveCardField('description', this.value)"></textarea>
+
+            <div id="cmLabelsSection" class="d-none">
+              <div class="section-title"><i class="bi bi-tags"></i> Étiquettes</div>
+              <div id="cmLabels" class="d-flex flex-wrap gap-1"></div>
+            </div>
+
+            <div id="cmChecklists"></div>
+
+            <div class="section-title"><i class="bi bi-paperclip"></i> Pièces jointes</div>
+            <div id="cmAttachments" class="mb-2"></div>
+            <input type="file" id="cmFile" class="form-control form-control-sm" onchange="uploadAttachment()">
+
+            <div class="section-title"><i class="bi bi-chat"></i> Commentaires</div>
+            <textarea id="cmComment" class="form-control mb-1" rows="2" placeholder="Écrire un commentaire…"></textarea>
+            <button type="button" class="btn btn-sm btn-outline-secondary mb-2" onclick="postComment()">Publier le commentaire</button>
+            <div id="cmComments" class="mb-3"></div>
+            <div class="d-flex gap-2 mt-2">
+              <button type="button" class="btn btn-primary" onclick="saveAndClose()">Enregistrer</button>
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
+            </div>
+          </div>
+
+          <div class="col-md-4">
+            <div class="section-title">Ajouter à la carte</div>
+            <div class="d-grid gap-1 mb-3">
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="promptLabel()">
+                <i class="bi bi-tag"></i> Étiquette
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="promptChecklist()">
+                <i class="bi bi-check2-square"></i> Checklist
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" data-bs-toggle="collapse" data-bs-target="#cmMembersPanel">
+                <i class="bi bi-person"></i> Membres
+              </button>
+              <div class="collapse" id="cmMembersPanel">
+                <div class="bg-white rounded p-2 small">
+                  {% for u in users %}
+                  <label class="d-flex align-items-center gap-2 mb-1">
+                    <input type="checkbox" class="cm-member" value="{{ u.id }}" onchange="toggleMember({{ u.id }}, this.checked)">
+                    {{ u.full_name }}
+                  </label>
+                  {% endfor %}
+                </div>
+              </div>
+              <button type="button" class="btn btn-sm btn-light text-start" data-bs-toggle="collapse" data-bs-target="#cmDatesPanel">
+                <i class="bi bi-clock"></i> Dates
+              </button>
+              <div class="collapse" id="cmDatesPanel">
+                <div class="bg-white rounded p-2">
+                  <label class="small">Début</label>
+                  <input type="text" id="cmStart" class="form-control form-control-sm mb-1 date-mask" maxlength="8"
+                         placeholder="jj/mm/aa" onchange="saveCardField('start_date', this.value)">
+                  <label class="small">Échéance</label>
+                  <input type="text" id="cmDue" class="form-control form-control-sm date-mask" maxlength="8"
+                         placeholder="jj/mm/aa" onchange="saveCardField('due_date', this.value)">
+                </div>
+              </div>
+            </div>
+            <div class="section-title">Couverture</div>
+            <div class="d-flex flex-wrap mb-2" id="cmCoverPicker">
+              {% for col, hex in label_hex.items() %}
+              <button type="button" class="color-dot" style="background:{{ hex }}"
+                      title="{{ col }}" onclick="setCover('{{ col }}')"></button>
+              {% endfor %}
+              <button type="button" class="btn btn-sm btn-outline-secondary ms-1" onclick="setCover('')">Aucune</button>
+            </div>
+            <div class="section-title">Actions</div>
+            <div class="d-grid gap-1">
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="duplicateCard()">
+                <i class="bi bi-copy"></i> Dupliquer
+              </button>
+              <button type="button" class="btn btn-sm btn-outline-danger" onclick="archiveCard()">
+                <i class="bi bi-archive"></i> Archiver
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BOARD_ID = {{ board.id }};
+let currentCardId = null;
+let dragCardId = null;
+let dragFromList = null;
+
+// ─── Filtres ─────────────────────────────────────────
+function applyFilters() {
+  const text = (document.getElementById('filterText').value || '').toLowerCase().trim();
+  const member = document.getElementById('filterMember').value;
+  const label = document.getElementById('filterLabel').value;
+  const due = document.getElementById('filterDue').value;
+  document.querySelectorAll('.trello-card').forEach(card => {
+    let show = true;
+    const title = card.dataset.title || '';
+    const members = (card.dataset.members || '').split(',').filter(Boolean);
+    const labels = (card.dataset.labels || '').split(',').filter(Boolean);
+    const hasDue = !!(card.dataset.due);
+    const overdue = card.dataset.overdue === '1';
+    if (text && !title.includes(text)) show = false;
+    if (member === 'none' && members.length) show = false;
+    if (member && member !== 'none' && !members.includes(member)) show = false;
+    if (label && !labels.includes(label)) show = false;
+    if (due === 'overdue' && !overdue) show = false;
+    if (due === 'has_due' && !hasDue) show = false;
+    if (due === 'no_due' && hasDue) show = false;
+    card.classList.toggle('filter-hide', !show);
+  });
+}
+function clearFilters() {
+  document.getElementById('filterText').value = '';
+  document.getElementById('filterMember').value = '';
+  document.getElementById('filterLabel').value = '';
+  document.getElementById('filterDue').value = '';
+  applyFilters();
+}
+
+// ─── Drag & drop ───────────────────────────────────────
+function onDragStart(e) {
+  const card = e.target.closest('.trello-card');
+  if (!card) return;
+  dragCardId = card.dataset.cardId;
+  dragFromList = card.parentElement;
+  card.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragCardId);
+  e.stopPropagation();
+}
+function onDragEnd(e) {
+  const card = e.target.closest('.trello-card');
+  if (card) card.classList.remove('dragging');
+  document.querySelectorAll('.trello-cards').forEach(c => c.classList.remove('drag-over'));
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.classList.remove('drag-over');
+  const cardId = e.dataTransfer.getData('text/plain') || dragCardId;
+  const listId = col.dataset.listId;
+  if (!cardId || !listId) return;
+  const card = document.querySelector('.trello-card[data-card-id="'+cardId+'"]');
+  if (!card) return;
+  col.appendChild(card);
+  card.dataset.listId = listId;
+  // positions
+  const cards = [...col.querySelectorAll('.trello-card')];
+  const pos = cards.indexOf(card);
+  fetch('/projects/cards/' + cardId + '/move', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({list_id: parseInt(listId), position: pos})
+  });
+}
+
+// ─── Listes ────────────────────────────────────────────
+function renameList(input) {
+  const id = input.dataset.listId;
+  const fd = new FormData();
+  fd.append('name', input.value);
+  fetch('/projects/lists/' + id + '/rename', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  });
+}
+function showAddList() {
+  document.getElementById('addListBtn').classList.add('d-none');
+  document.getElementById('addListForm').classList.remove('d-none');
+  document.getElementById('newListName').focus();
+}
+function hideAddList() {
+  document.getElementById('addListBtn').classList.remove('d-none');
+  document.getElementById('addListForm').classList.add('d-none');
+}
+function submitAddList() {
+  const name = document.getElementById('newListName').value.trim();
+  if (!name) return;
+  const fd = new FormData();
+  fd.append('name', name);
+  fetch('/projects/' + BOARD_ID + '/lists', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => location.reload());
+}
+
+// ─── Cartes (ajout rapide) ─────────────────────────────
+function showAddCard(el, listId) {
+  el.classList.add('d-none');
+  el.nextElementSibling.classList.remove('d-none');
+  el.nextElementSibling.querySelector('textarea').focus();
+}
+function hideAddCard(btn) {
+  const form = btn.closest('.add-card-form');
+  form.classList.add('d-none');
+  form.previousElementSibling.classList.remove('d-none');
+}
+function submitAddCard(btn, listId) {
+  const form = btn.closest('.add-card-form');
+  const title = form.querySelector('textarea').value.trim();
+  if (!title) return;
+  const fd = new FormData();
+  fd.append('title', title);
+  fetch('/projects/lists/' + listId + '/cards', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(r => r.json()).then(data => {
+    if (data.ok) location.reload();
+  });
+}
+
+// ─── Modal carte ───────────────────────────────────────
+function openCard(id) {
+  currentCardId = id;
+  fetch('/projects/cards/' + id)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) return;
+      document.getElementById('cmTitle').value = data.title;
+      document.getElementById('cmListName').textContent = data.list_name;
+      document.getElementById('cmDesc').value = data.description;
+      document.getElementById('cmStart').value = data.start_date;
+      document.getElementById('cmDue').value = data.due_date;
+
+      // labels
+      const labBox = document.getElementById('cmLabels');
+      labBox.innerHTML = '';
+      if (data.labels.length) {
+        document.getElementById('cmLabelsSection').classList.remove('d-none');
+        data.labels.forEach(l => {
+          labBox.innerHTML += `<span class="badge me-1" style="background:${l.hex}">${l.name || l.color}
+            <button type="button" class="btn-close btn-close-white btn-sm ms-1" style="font-size:0.5rem"
+              onclick="deleteLabel(${l.id})"></button></span>`;
+        });
+      } else {
+        document.getElementById('cmLabelsSection').classList.add('d-none');
+      }
+
+      // members checkboxes
+      document.querySelectorAll('.cm-member').forEach(cb => {
+        cb.checked = data.members.some(m => m.id == cb.value);
+      });
+
+      // checklists
+      const clBox = document.getElementById('cmChecklists');
+      clBox.innerHTML = '';
+      data.checklists.forEach(cl => {
+        let html = `<div class="section-title"><i class="bi bi-check2-square"></i> ${cl.title}</div>`;
+        const done = cl.items.filter(i => i.is_done).length;
+        const total = cl.items.length;
+        if (total) {
+          const pct = Math.round(100 * done / total);
+          html += `<div class="progress mb-2"><div class="progress-bar" style="width:${pct}%"></div></div>`;
+        }
+        cl.items.forEach(it => {
+          html += `<div class="cl-item ${it.is_done ? 'done' : ''}">
+            <input type="checkbox" ${it.is_done ? 'checked' : ''} onchange="toggleItem(${it.id})">
+            <span class="flex-grow-1">${it.text}</span>
+          </div>`;
+        });
+        html += `<div class="input-group input-group-sm mt-1 mb-2">
+          <input type="text" class="form-control" placeholder="Ajouter un élément…" id="newItem${cl.id}"
+            onkeydown="if(event.key==='Enter'){addItem(${cl.id});event.preventDefault();}">
+          <button class="btn btn-outline-secondary" type="button" onclick="addItem(${cl.id})">+</button>
+        </div>`;
+        clBox.innerHTML += html;
+      });
+
+      // attachments
+      const attBox = document.getElementById('cmAttachments');
+      attBox.innerHTML = data.attachments.map(a =>
+        `<div><a href="${a.url}" target="_blank"><i class="bi bi-paperclip"></i> ${a.name}</a></div>`
+      ).join('') || '<span class="text-muted small">Aucune</span>';
+
+      // comments
+      const cBox = document.getElementById('cmComments');
+      cBox.innerHTML = data.comments.map(c =>
+        `<div class="comment-item"><div class="small fw-semibold">${c.user}
+          <span class="text-muted fw-normal">· ${c.date}</span></div>
+          <div class="small">${c.body}</div></div>`
+      ).join('') || '';
+
+      new bootstrap.Modal(document.getElementById('cardModal')).show();
+    });
+}
+
+function saveAndClose() {
+  if (!currentCardId) return;
+  const title = document.getElementById('cmTitle').value;
+  const desc = document.getElementById('cmDesc').value;
+  const start = document.getElementById('cmStart').value;
+  const due = document.getElementById('cmDue').value;
+  const comment = (document.getElementById('cmComment').value || '').trim();
+
+  const body = {
+    title: title,
+    description: desc,
+    start_date: start,
+    due_date: due
+  };
+
+  const doClose = () => {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('cardModal'));
+    if (modal) modal.hide();
+    location.reload();
+  };
+
+  fetch('/projects/cards/' + currentCardId + '/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify(body)
+  }).then(() => {
+    if (comment) {
+      return fetch('/projects/cards/' + currentCardId + '/comments', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({body: comment})
+      }).then(() => doClose());
+    }
+    doClose();
+  });
+}
+
+function saveCardField(field, value) {
+  if (!currentCardId) return;
+  const body = {};
+  body[field] = value;
+  fetch('/projects/cards/' + currentCardId + '/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify(body)
+  });
+}
+
+function toggleMember(userId, checked) {
+  if (!currentCardId) return;
+  const fd = new FormData();
+  fd.append('user_id', userId);
+  fetch('/projects/cards/' + currentCardId + '/members', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  });
+}
+
+function promptLabel() {
+  if (!currentCardId) return;
+  const colors = {{ label_colors|tojson }};
+  const color = prompt('Couleur (' + colors.join(', ') + ') :', 'blue');
+  if (!color) return;
+  const name = prompt('Nom de l\'étiquette (optionnel) :', '') || '';
+  fetch('/projects/cards/' + currentCardId + '/labels', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({name, color})
+  }).then(() => openCard(currentCardId));
+}
+
+function deleteLabel(id) {
+  fetch('/projects/labels/' + id, {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => openCard(currentCardId));
+}
+
+function promptChecklist() {
+  if (!currentCardId) return;
+  const title = prompt('Titre de la checklist :', 'Checklist');
+  if (!title) return;
+  fetch('/projects/cards/' + currentCardId + '/checklists', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({title})
+  }).then(() => openCard(currentCardId));
+}
+
+function addItem(clId) {
+  const input = document.getElementById('newItem' + clId);
+  const text = (input.value || '').trim();
+  if (!text) return;
+  fetch('/projects/checklists/' + clId + '/items', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({text})
+  }).then(() => openCard(currentCardId));
+}
+
+function toggleItem(id) {
+  fetch('/projects/checklist-items/' + id + '/toggle', {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => openCard(currentCardId));
+}
+
+function postComment() {
+  const body = document.getElementById('cmComment').value.trim();
+  if (!body || !currentCardId) return;
+  fetch('/projects/cards/' + currentCardId + '/comments', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({body})
+  }).then(() => {
+    document.getElementById('cmComment').value = '';
+    openCard(currentCardId);
+  });
+}
+
+function uploadAttachment() {
+  const fileInput = document.getElementById('cmFile');
+  if (!fileInput.files.length || !currentCardId) return;
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fetch('/projects/cards/' + currentCardId + '/attachments', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => {
+    fileInput.value = '';
+    openCard(currentCardId);
+  });
+}
+
+function setCover(color) {
+  if (!currentCardId) return;
+  fetch('/projects/cards/' + currentCardId + '/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({cover_color: color})
+  }).then(() => location.reload());
+}
+
+function duplicateCard() {
+  if (!currentCardId) return;
+  fetch('/projects/cards/' + currentCardId + '/duplicate', {
+    method: 'POST',
+    headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('cardModal')).hide();
+      location.reload();
+    }
+  });
+}
+
+function archiveCard() {
+  if (!currentCardId || !confirm('Archiver cette carte ?')) return;
+  fetch('/projects/cards/' + currentCardId + '/archive', {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('cardModal')).hide();
+    location.reload();
+  });
+}
+
+// date mask
+document.querySelectorAll('.date-mask').forEach(el => {
+  el.addEventListener('input', function() {
+    let v = this.value.replace(/\D/g, '').slice(0, 6);
+    let out = v.slice(0, 2);
+    if (v.length >= 3) out += '/' + v.slice(2, 4);
+    if (v.length >= 5) out += '/' + v.slice(4, 6);
+    this.value = out;
+  });
+});
+
+// reload board after modal close to refresh cards
+document.getElementById('cardModal').addEventListener('hidden.bs.modal', () => {
+  // soft reload optional – skip to avoid losing scroll
+});
+</script>
+{% endblock %}

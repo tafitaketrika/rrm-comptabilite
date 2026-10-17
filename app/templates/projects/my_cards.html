@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Mes cartes – Projets{% endblock %}
+{% block extra_css %}
+<style>
+.my-card {
+  background: #fff; border-radius: 10px; padding: 12px 14px; margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); cursor: pointer;
+  border-left: 4px solid #0079bf;
+}
+.my-card:hover { background: #f8f9fa; }
+.my-card .board-name { font-size: 0.75rem; color: #6b778c; }
+.my-card .due.overdue { color: #eb5a46; font-weight: 600; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h2 class="page-title mb-0"><i class="bi bi-person-check"></i> Mes cartes</h2>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('projects.inbox') }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-inbox"></i> Réception</a>
+    <a href="{{ url_for('projects.calendar') }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-calendar3"></i> Calendrier</a>
+    <a href="{{ url_for('projects.list_boards') }}" class="btn btn-outline-secondary btn-sm">← Tableaux</a>
+  </div>
+</div>
+<p class="text-muted small mb-3">Toutes les cartes des tableaux où vous êtes membre.</p>
+
+{% if cards %}
+  {% for card in cards %}
+  <a href="{{ url_for('projects.view_board', board_id=card.list.board_id) }}" class="my-card text-decoration-none d-block text-dark">
+    <div class="board-name">{{ card.list.board.name }} · {{ card.list.name }}</div>
+    <div class="fw-semibold">{{ card.title }}</div>
+    <div class="small mt-1">
+      {% if card.due_date %}
+      <span class="due {% if card.is_overdue() %}overdue{% endif %}">
+        <i class="bi bi-clock"></i> {{ card.due_date.strftime('%d/%m/%y') }}
+      </span>
+      {% endif %}
+      {% set prog = card.checklist_progress() %}
+      {% if prog %} · <i class="bi bi-check2-square"></i> {{ prog[0] }}/{{ prog[1] }}{% endif %}
+    </div>
+  </a>
+  {% endfor %}
+{% else %}
+  <div class="alert alert-light border">Aucune carte ne vous est assignée pour le moment.
+    Ouvrez une carte dans un tableau et ajoutez-vous comme membre.</div>
+{% endif %}
+{% endblock %}
