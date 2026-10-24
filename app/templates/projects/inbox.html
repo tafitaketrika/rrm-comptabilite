@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% block title %}Boîte de réception – Projets{% endblock %}
+{% block extra_css %}
+<style>
+.inbox-item {
+  background: #fff; border-radius: 10px; padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 10px;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.inbox-item .title { font-weight: 600; color: #172b4d; }
+.inbox-item .meta { font-size: 0.8rem; color: #6b778c; }
+.inbox-empty {
+  text-align: center; padding: 48px 16px; color: #6b778c;
+  background: #fff; border-radius: 12px; border: 1px dashed #dfe1e6;
+}
+.move-panel { min-width: 220px; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h2 class="page-title mb-0"><i class="bi bi-inbox"></i> Boîte de réception</h2>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('projects.list_boards') }}" class="btn btn-outline-secondary btn-sm">← Tableaux</a>
+  </div>
+</div>
+
+<p class="text-muted small mb-3">
+  Capturez ici les tâches et idées non encore classées. Ensuite, envoyez-les vers un tableau (comme sur Trello).
+</p>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-dark text-white">Nouvelle entrée</div>
+      <div class="card-body">
+        <form method="POST" action="{{ url_for('projects.inbox_add') }}">
+          <div class="mb-2">
+            <label class="form-label">Titre</label>
+            <input type="text" name="title" class="form-control" required autofocus placeholder="Ex. : Commander pièces moteur site B">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes (optionnel)</label>
+            <textarea name="description" class="form-control" rows="2"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i> Ajouter à la réception
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    {% if items %}
+      {% for card in items %}
+      <div class="inbox-item" id="inbox-{{ card.id }}">
+        <div class="flex-grow-1">
+          <div class="title">{{ card.title }}</div>
+          {% if card.description %}
+          <div class="small text-muted mt-1">{{ card.description }}</div>
+          {% endif %}
+          <div class="meta mt-1">
+            {% if card.created_at %}{{ card.created_at.strftime('%d/%m/%y %H:%M') }}{% endif %}
+          </div>
+        </div>
+        <div class="move-panel">
+          <label class="small text-muted">Envoyer vers</label>
+          <select class="form-select form-select-sm mb-1" id="board-{{ card.id }}"
+                  onchange="loadLists({{ card.id }}, this.value)">
+            <option value="">— Tableau —</option>
+            {% for b in boards %}
+            <option value="{{ b.id }}">{{ b.name }}</option>
+            {% endfor %}
+          </select>
+          <select class="form-select form-select-sm mb-1" id="list-{{ card.id }}" disabled>
+            <option value="">— Liste —</option>
+          </select>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-sm btn-primary flex-grow-1"
+                    onclick="moveToBoard({{ card.id }})">Envoyer</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary"
+                    title="Ignorer / archiver" onclick="dismissInbox({{ card.id }})">×</button>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="inbox-empty">
+        <i class="bi bi-inbox" style="font-size:2rem;"></i>
+        <div class="mt-2">Boîte de réception vide</div>
+        <div class="small">Ajoutez une tâche à gauche pour commencer.</div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script>
+const BOARD_LISTS = {{ board_lists|tojson }};
+
+function loadLists(cardId, boardId) {
+  const sel = document.getElementById('list-' + cardId);
+  sel.innerHTML = '<option value="">— Liste —</option>';
+  if (!boardId || !BOARD_LISTS[boardId]) {
+    sel.disabled = true;
+    return;
+  }
+  BOARD_LISTS[boardId].forEach(l => {
+    const opt = document.createElement('option');
+    opt.value = l.id;
+    opt.textContent = l.name;
+    sel.appendChild(opt);
+  });
+  sel.disabled = false;
+}
+
+function moveToBoard(cardId) {
+  const listId = document.getElementById('list-' + cardId).value;
+  if (!listId) {
+    alert('Choisissez un tableau et une liste.');
+    return;
+  }
+  fetch('/projects/inbox/' + cardId + '/move', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({list_id: parseInt(listId)})
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      const el = document.getElementById('inbox-' + cardId);
+      if (el) el.remove();
+      if (data.redirect && confirm('Carte envoyée. Ouvrir le tableau ?')) {
+        location.href = data.redirect;
+      }
+    } else {
+      alert(data.error || 'Erreur');
+    }
+  });
+}
+
+function dismissInbox(cardId) {
+  if (!confirm('Retirer de la réception ?')) return;
+  fetch('/projects/inbox/' + cardId + '/dismiss', {
+    method: 'POST',
+    headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => {
+    const el = document.getElementById('inbox-' + cardId);
+    if (el) el.remove();
+  });
+}
+</script>
+{% endblock %}
