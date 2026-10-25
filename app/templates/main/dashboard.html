@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Tableau de bord – La Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+.dash-kpi {
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  background: #fff;
+  height: 100%;
+  transition: box-shadow .15s;
+}
+.dash-kpi:hover { box-shadow: 0 4px 14px rgba(0,0,0,.06); }
+.dash-kpi .kpi-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  color: #6c757d;
+  margin-bottom: 4px;
+}
+.dash-kpi .kpi-value {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #111;
+  line-height: 1.2;
+}
+.dash-kpi .kpi-sub {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 4px;
+}
+.dash-kpi .kpi-icon {
+  width: 42px; height: 42px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f3f3f3;
+  color: #111;
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+.month-chip {
+  display: inline-block;
+  background: #111;
+  color: #fff;
+  font-size: 0.75rem;
+  padding: 2px 10px;
+  border-radius: 20px;
+  vertical-align: middle;
+}
+.currency-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  font-size: 1rem;
+}
+.currency-row span strong { color: #111; font-size: 1.15rem; }
+.dash-alert {
+  border-radius: 10px;
+  border: 1px solid #f0e0a0;
+  background: #fffbeb;
+  color: #5c4a00;
+  padding: 12px 16px;
+  font-size: 0.9rem;
+}
+.dash-alert-danger {
+  border-color: #f0c0c0;
+  background: #fff5f5;
+  color: #7a1f1f;
+}
+.perf-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #555;
+  margin-bottom: 12px;
+}
+.perf-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: #eee;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.perf-bar > span {
+  display: block;
+  height: 100%;
+  background: #111;
+  border-radius: 4px;
+  max-width: 100%;
+}
+.perf-bar.over > span { background: #c0392b; }
+.trend-up { color: #1e7e34; }
+.trend-down { color: #c0392b; }
+.trend-flat { color: #888; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+  <h2 class="mb-0"><i class="bi bi-speedometer2"></i> Tableau de bord</h2>
+  <span class="month-chip">Mois {{ month_label }}</span>
+</div>
+
+{% if current_user.is_admin() and total_entries == 0 %}
+<div class="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <strong>Base de données vide.</strong>
+    Chargez les écritures du Brouillard et le budget de démonstration.
+  </div>
+  <form method="POST" action="{{ url_for('main.import_demo_data') }}">
+    <button type="submit" class="btn btn-warning btn-sm">
+      <i class="bi bi-download"></i> Importer les données de démo
+    </button>
+  </form>
+</div>
+{% endif %}
+
+{% if drafts_count and drafts_count > 0 %}
+<div class="dash-alert mb-3">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  <strong>{{ drafts_count }}</strong> écriture{{ 's' if drafts_count > 1 else '' }} en brouillon
+  (non validée{{ 's' if drafts_count > 1 else '' }})
+  — {{ posted_count }} validée{{ 's' if posted_count > 1 else '' }}
+</div>
+{% endif %}
+
+{% if unbalanced_count and unbalanced_count > 0 %}
+<div class="dash-alert dash-alert-danger mb-3">
+  <i class="bi bi-balance-scale me-1"></i>
+  <strong>{{ unbalanced_count }}</strong> écriture{{ 's' if unbalanced_count > 1 else '' }} non équilibrée{{ 's' if unbalanced_count > 1 else '' }}
+  (débit ≠ crédit)
+</div>
+{% endif %}
+
+{# —— KPI activité —— #}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="kpi-label">Écritures (mois)</div>
+          <div class="kpi-value">{{ month_entries_count }}</div>
+          <div class="kpi-sub">{{ total_entries }} au total</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-journal-text"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="kpi-label">Volume MGA (mois)</div>
+          <div class="kpi-value" style="font-size:1.25rem;">{{ month_mga_fmt }}</div>
+          <div class="kpi-sub">débits saisis</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-cash-stack"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="kpi-label">Budgets</div>
+          <div class="kpi-value">{{ total_budgets }}</div>
+          <div class="kpi-sub">{{ budgets_month_count }} ce mois · {{ budget_total_mga_fmt }} MGA</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-pie-chart"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="kpi-label">Brouillons</div>
+          <div class="kpi-value">{{ drafts_count }}</div>
+          <div class="kpi-sub">{{ posted_count }} validée(s)</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-pencil-square"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# —— Indicateurs de performance financière —— #}
+<div class="perf-section-title mt-2"><i class="bi bi-graph-up-arrow"></i> Performance financière</div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="kpi-label">Exécution budget</div>
+      <div class="kpi-value">{{ execution_rate_fmt }}&nbsp;%</div>
+      <div class="kpi-sub">Réel mois / total budgets</div>
+      <div class="perf-bar {% if execution_rate > 100 %}over{% endif %}">
+        <span style="width: {% if execution_rate > 100 %}100{% elif execution_rate < 0 %}0{% else %}{{ execution_rate_fmt }}{% endif %}%;"></span>
+      </div>
+      <div class="kpi-sub mt-1">Reste {{ budget_remaining_fmt }} MGA</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="kpi-label">Évolution vs {{ prev_label }}</div>
+      <div class="kpi-value {% if evol_mga_pct > 2 %}trend-up{% elif evol_mga_pct < -2 %}trend-down{% else %}trend-flat{% endif %}">
+        {% if evol_mga_pct > 0 %}+{% endif %}{{ evol_mga_pct_fmt }}&nbsp;%
+      </div>
+      <div class="kpi-sub">Volume MGA : {{ prev_mga_fmt }} → {{ month_mga_fmt }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="kpi-label">Ticket moyen</div>
+      <div class="kpi-value" style="font-size:1.25rem;">{{ avg_ticket_fmt }}</div>
+      <div class="kpi-sub">MGA / écriture (mois)</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="dash-kpi p-3">
+      <div class="kpi-label">Taux de validation</div>
+      <div class="kpi-value">{{ validation_rate_fmt }}&nbsp;%</div>
+      <div class="kpi-sub">{{ posted_count }} validée(s) / {{ drafts_count + posted_count }}</div>
+      <div class="perf-bar">
+        <span style="width: {% if validation_rate > 100 %}100{% elif validation_rate < 0 %}0{% else %}{{ validation_rate_fmt }}{% endif %}%;"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# —— Devises du mois + période —— #}
+<div class="row g-3">
+  <div class="col-md-8">
+    <div class="dash-kpi p-3">
+      <div class="kpi-label mb-2">Activité multi-devises — mois {{ month_label }}</div>
+      <div class="currency-row">
+        <span><strong>{{ month_mga_fmt }}</strong> MGA</span>
+        <span><strong>{{ month_usd_fmt }}</strong> USD</span>
+        <span><strong>{{ month_eur_fmt }}</strong> EUR</span>
+      </div>
+      <div class="kpi-sub mt-2">Somme des montants débit des écritures du mois</div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="dash-kpi p-3">
+      <div class="kpi-label mb-2">Période comptable</div>
+      {% if current_period %}
+        <div class="kpi-value" style="font-size:1.1rem;">
+          {{ current_period.start_date.strftime('%d/%m/%y') }}
+          →
+          {{ current_period.end_date.strftime('%d/%m/%y') }}
+        </div>
+        <div class="kpi-sub">{{ total_accounts }} comptes · {{ total_users }} utilisateurs</div>
+      {% else %}
+        <div class="kpi-value" style="font-size:1.1rem;">Aucune</div>
+        <div class="kpi-sub">{{ total_accounts }} comptes actifs</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
