@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Écriture – La Fourmi{% endblock %}
+
+{% block extra_css %}
+<style>
+.pj-nav-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px; background: rgba(255,255,255,0.95);
+    color: #111; border-radius: 50%; font-size: 1.4rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+.carousel-control-prev, .carousel-control-next { width: 15%; opacity: 1; }
+.info-label { color: #555; font-weight: 600; font-size: 10pt; }
+.info-value { color: #111; font-size: 10pt; }
+.pj-filename {
+  opacity: 0; transition: opacity 0.2s;
+  font-size: 9pt; color: #666; margin-top: 6px; text-align: center;
+  min-height: 1.2em;
+}
+.pj-filename.show { opacity: 1; }
+.equal-height-row { display: flex; flex-wrap: wrap; }
+.equal-height-row > [class*="col-"] { display: flex; }
+.equal-height-row > [class*="col-"] > .card { width: 100%; display: flex; flex-direction: column; }
+.equal-height-row .card-body { flex: 1; }
+.validate-bar {
+  background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px;
+  padding: 0.75rem 1rem; margin-bottom: 1rem;
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-end align-items-center mb-3">
+    <a href="{{ url_for('journal.list_entries') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Retour au Brouillard
+    </a>
+</div>
+
+{% set credit_line = entry.lines|selectattr('side', 'equalto', 'credit')|list|first %}
+{% set debit_line = entry.lines|selectattr('side', 'equalto', 'debit')|list|first %}
+
+<div class="row g-3 mb-4 equal-height-row align-items-stretch">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-dark text-white">Détails de l'écriture</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4 info-label">Saisi par</dt>
+                    <dd class="col-sm-8 info-value">{{ entry.created_by.full_name if entry.created_by else '—' }}</dd>
+                    <dt class="col-sm-4 info-label">Date</dt>
+                    <dd class="col-sm-8 info-value">
+                        {{ entry.entry_date.strftime('%d/%m/%y') }}
+                        {% if entry.created_at %} {{ entry.created_at.strftime('%H:%M') }}{% endif %}
+                    </dd>
+                    <dt class="col-sm-4 info-label">Compte de crédit</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if credit_line %}
+                        {{ credit_line.account.code|format_code_year }} – {{ credit_line.account.name }}
+                        {% else %}—{% endif %}
+                    </dd>
+                    <dt class="col-sm-4 info-label">Montant</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if credit_line %}
+                            {% if credit_line.amount_mga %}{{ '{:,.0f}'.format(credit_line.amount_mga).replace(',', ' ') }} MGA
+                            {% elif credit_line.amount_usd %}{{ '{:,.2f}'.format(credit_line.amount_usd) }} USD
+                            {% elif credit_line.amount_eur %}{{ '{:,.2f}'.format(credit_line.amount_eur) }} EUR
+                            {% else %}0{% endif %}
+                        {% else %}—{% endif %}
+                    </dd>
+                    <dt class="col-sm-4 info-label">Description</dt>
+                    <dd class="col-sm-8 info-value">{{ entry.description }}</dd>
+                    <dt class="col-sm-4 info-label">Compte de débit</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if debit_line %}
+                        {{ debit_line.account.code|format_code_year }} – {{ debit_line.account.name }}
+                        {% else %}—{% endif %}
+                    </dd>
+                    <dt class="col-sm-4 info-label">Montant</dt>
+                    <dd class="col-sm-8 info-value">
+                        {% if debit_line %}
+                            {% if debit_line.amount_mga %}{{ '{:,.0f}'.format(debit_line.amount_mga).replace(',', ' ') }} MGA
+                            {% elif debit_line.amount_usd %}{{ '{:,.2f}'.format(debit_line.amount_usd) }} USD
+                            {% elif debit_line.amount_eur %}{{ '{:,.2f}'.format(debit_line.amount_eur) }} EUR
+                            {% else %}0{% endif %}
+                        {% else %}—{% endif %}
+                    </dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <i class="bi bi-paperclip"></i> Pièces jointes{% if entry.attachments %} : {{ entry.attachments|length }}{% endif %}
+            </div>
+            <div class="card-body p-2">
+                {% if entry.attachments %}
+                <div id="pjCarousel" class="carousel slide" data-bs-ride="false">
+                    <div class="carousel-inner">
+                        {% for att in entry.attachments %}
+                        <div class="carousel-item {% if loop.first %}active{% endif %}">
+                            <div class="text-center bg-dark rounded p-2 pj-slide" style="min-height: 220px;"
+                                 data-filename="{{ att.original_filename }}">
+                                {% if att.file_type and att.file_type.startswith('image/') %}
+                                    <img src="{{ url_for('static', filename='uploads/' + att.stored_filename) }}"
+                                         class="img-fluid rounded" style="max-height: 240px; object-fit: contain;" alt="">
+                                {% else %}
+                                    <div class="text-white py-5">
+                                        <i class="bi bi-file-earmark-pdf" style="font-size:2rem;"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="pj-filename" data-fn="{{ att.original_filename }}"></div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if entry.attachments|length > 1 %}
+                    <button class="carousel-control-prev" type="button" data-bs-target="#pjCarousel" data-bs-slide="prev">
+                        <span class="pj-nav-btn"><i class="bi bi-chevron-left"></i></span>
+                    </button>
+                    <button class="carousel-control-next" type="button" data-bs-target="#pjCarousel" data-bs-slide="next">
+                        <span class="pj-nav-btn"><i class="bi bi-chevron-right"></i></span>
+                    </button>
+                    {% endif %}
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-paperclip" style="font-size:2rem;"></i>
+                    <div class="mt-2 small">Aucune pièce jointe</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Nom de fichier visible après 1s de survol
+document.querySelectorAll('.pj-slide').forEach(function(slide) {
+  const fnEl = slide.parentElement.querySelector('.pj-filename');
+  let timer = null;
+  slide.addEventListener('mouseenter', function() {
+    timer = setTimeout(function() {
+      if (fnEl) {
+        fnEl.textContent = slide.dataset.filename || '';
+        fnEl.classList.add('show');
+      }
+    }, 1000);
+  });
+  slide.addEventListener('mouseleave', function() {
+    clearTimeout(timer);
+    if (fnEl) {
+      fnEl.classList.remove('show');
+      fnEl.textContent = '';
+    }
+  });
+});
+</script>
+{% endblock %}
