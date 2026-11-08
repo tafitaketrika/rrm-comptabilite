@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Notifications – La Fourmi{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="page-title mb-0"><i class="bi bi-bell"></i> Notifications</h2>
+  <form method="POST" action="{{ url_for('projects.mark_notifications_read') }}">
+    <button class="btn btn-sm btn-outline-dark">Tout marquer comme lu</button>
+  </form>
+</div>
+{% if items %}
+  {% for n in items %}
+  <div class="card mb-2 {% if not n.is_read %}border-danger{% endif %}">
+    <div class="card-body py-2 px-3 d-flex justify-content-between align-items-center">
+      <div>
+        <div class="{% if not n.is_read %}fw-semibold text-danger{% endif %}">{{ n.message }}</div>
+        <div class="small text-muted">{{ n.created_at.strftime('%d/%m/%y %H:%M') if n.created_at else '' }}</div>
+      </div>
+      {% if n.card and n.card.list %}
+      <a href="{{ url_for('projects.view_board', board_id=n.card.list.board_id) }}?highlight={{ n.card.id }}" class="btn btn-sm btn-outline-dark">Ouvrir</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div class="alert alert-light border">Aucune notification.</div>
+{% endif %}
+{% endblock %}

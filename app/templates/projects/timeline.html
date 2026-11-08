@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Chronogramme – {{ board.name }}{% endblock %}
+{% block extra_css %}
+<style>
+.tl-header { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+.tl-header h1 { font-size: 1.15rem; margin: 0; font-weight: 700; }
+.tl-wrap { overflow-x: auto; background: #fff; border-radius: 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.tl-days {
+  display: flex; border-bottom: 1px solid #e0e0e0; min-width: max-content;
+  position: sticky; top: 0; background: #fafafa; z-index: 2;
+}
+.tl-day {
+  flex: 0 0 48px; width: 48px; text-align: center; padding: 6px 0;
+  font-size: 0.7rem; border-right: 1px solid #eee; color: #5e6c84;
+}
+.tl-day.today { background: #e3f2fd; color: #1565c0; font-weight: 700; }
+.tl-day.weekend { background: #f5f5f5; }
+.tl-day .dow { display: block; font-size: 0.65rem; opacity: .7; }
+.tl-body { position: relative; min-height: 200px; min-width: max-content; padding: 12px 0 24px; }
+.tl-row {
+  position: relative; height: 36px; margin-bottom: 6px;
+}
+.tl-bar {
+  position: absolute; top: 4px; height: 28px; border-radius: 6px;
+  background: #0079bf; color: #fff; font-size: 0.75rem;
+  padding: 0 8px; line-height: 28px; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0,0,0,.15);
+}
+.tl-bar:hover { filter: brightness(1.1); }
+.tl-bar.overdue { background: #eb5a46; }
+.tl-bar.green { background: #61bd4f; }
+.tl-bar.yellow { background: #f2d600; color: #333; }
+.tl-bar.orange { background: #ff9f1a; }
+.tl-bar.red { background: #eb5a46; }
+.tl-bar.purple { background: #c377e0; }
+.tl-bar.blue { background: #0079bf; }
+.tl-bar.sky { background: #00c2e0; }
+.tl-bar.lime { background: #51e898; color: #333; }
+.tl-bar.pink { background: #ff78cb; }
+.tl-bar.black { background: #344563; }
+.tl-empty { padding: 40px; text-align: center; color: #6b778c; }
+.tl-today-line {
+  position: absolute; top: 0; bottom: 0; width: 2px; background: #1565c0;
+  z-index: 1; pointer-events: none;
+}
+</style>
+{% endblock %}
+{% block content %}
+<div class="tl-header">
+  <a href="{{ url_for('projects.view_board', board_id=board.id) }}" class="btn btn-sm btn-outline-dark">← Tableau</a>
+  <a href="{{ url_for('projects.board_dashboard', board_id=board.id) }}" class="btn btn-sm btn-outline-dark">Tableau de bord</a>
+  <a href="{{ url_for('projects.calendar') }}" class="btn btn-sm btn-outline-dark">Calendrier</a>
+  <h1><i class="bi bi-distribute-horizontal"></i> {{ board.name }}</h1>
+</div>
+
+{% if cards %}
+<div class="tl-wrap">
+  <div class="tl-days">
+    {% for d in days %}
+    <div class="tl-day {% if d.is_today %}today{% endif %} {% if d.weekend %}weekend{% endif %}">
+      <span class="dow">{{ d.dow }}</span>{{ d.label }}
+    </div>
+    {% endfor %}
+  </div>
+  <div class="tl-body" id="tlBody">
+    {% for d in days %}
+      {% if d.is_today %}
+      <div class="tl-today-line" style="left: {{ loop.index0 * 48 + 24 }}px"></div>
+      {% endif %}
+    {% endfor %}
+    {% for c in cards %}
+    <div class="tl-row">
+      <a class="tl-bar {% if c.overdue %}overdue{% elif c.cover %}{{ c.cover }}{% endif %}"
+         href="{{ url_for('projects.view_board', board_id=board.id) }}"
+         style="left: calc({{ c.left }}% ); width: calc({{ c.width }}% ); min-width: 48px;"
+         title="{{ c.title }} · {{ c.list_name }} · {{ c.start_fmt }} → {{ c.end_fmt }}">
+        {{ c.title }}
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+<p class="small text-muted mt-2">
+  {{ cards|length }} carte(s) avec date. Rouge = en retard. Définissez début / échéance dans la fiche carte.
+</p>
+{% else %}
+<div class="tl-empty">
+  Aucune carte avec date de début ou d’échéance.<br>
+  Ouvrez une carte → <strong>Dates</strong> pour en ajouter.
+</div>
+{% endif %}
+{% endblock %}
