@@ -1,0 +1,1396 @@
+{% extends "base.html" %}
+{% block title %}{{ board.name }} – Projets{% endblock %}
+{% block extra_css %}
+<style>
+/* Full-width board area */
+.trello-page { margin: -1rem -1.25rem; padding: 0; }
+.filter-bar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  padding: 8px 16px; background: rgba(0,0,0,.15);
+}
+.filter-bar select, .filter-bar input {
+  font-size: 0.8rem; border-radius: 6px; border: none; padding: 4px 8px;
+  max-width: 160px;
+}
+.filter-bar .filter-clear { color: #fff; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+.trello-card.filter-hide { display: none !important; }
+.trello-header {
+  background: rgba(0,0,0,.25); color: #fff; padding: 10px 16px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.trello-header h1 { font-size: 1.15rem; margin: 0; font-weight: 700; }
+.trello-board-bg {
+  min-height: calc(100vh - 120px);
+  background: {% if board.background == 'blue' %}#0079bf{% elif board.background == 'green' %}#519839{% elif board.background == 'orange' %}#d29034{% elif board.background == 'purple' %}#89609e{% else %}#1a1a1a{% endif %};
+  padding: 12px 8px 24px;
+}
+.trello-lists {
+  display: flex; gap: 12px; align-items: flex-start;
+  overflow-x: auto; padding: 0 8px 8px; min-height: 400px;
+}
+.trello-list {
+  flex: 0 0 272px; width: 272px; background: #ebecf0;
+  border-radius: 12px; max-height: calc(100vh - 160px);
+  display: flex; flex-direction: column;
+}
+.trello-list-header {
+  padding: 10px 12px 4px; font-weight: 700; font-size: 0.9rem;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.trello-list-header input {
+  border: none; background: transparent; font-weight: 700; width: 100%;
+  font-size: 0.9rem; padding: 2px 4px; border-radius: 4px;
+}
+.trello-list-header input:focus { background: #fff; outline: 2px solid #0079bf; }
+.trello-cards {
+  overflow-y: auto; padding: 4px 8px; flex: 1; min-height: 40px;
+}
+.trello-cards.drag-over { background: #dfe3e8; border-radius: 8px; }
+.trello-card .cover {
+  height: 32px; border-radius: 8px 8px 0 0; margin: -8px -10px 8px; 
+}
+.trello-card {
+  background: #fff; border-radius: 8px; padding: 8px 10px;
+  margin-bottom: 8px; box-shadow: 0 1px 0 rgba(9,30,66,.25);
+  cursor: pointer; user-select: none;
+}
+.trello-card:hover { background: #f4f5f7; }
+.trello-card.highlight-card { outline: 3px solid #dc3545; box-shadow: 0 0 0 4px rgba(220,53,69,.25); }
+.trello-card .labels { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.trello-card .label-chip {
+  height: 8px; min-width: 40px; border-radius: 4px;
+  font-size: 0; padding: 0;
+}
+.trello-card .label-chip.has-name {
+  height: auto; font-size: 0.7rem; color: #fff; padding: 1px 6px; font-weight: 600;
+}
+.trello-card .title { font-size: 0.9rem; color: #172b4d; }
+.trello-card .badges {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px;
+  font-size: 0.75rem; color: #5e6c84; align-items: center;
+}
+.trello-card .badge-due { background: #f4f5f7; border-radius: 3px; padding: 1px 6px; }
+.trello-card .badge-due.overdue { background: #eb5a46; color: #fff; }
+.trello-card .avatars { display: flex; margin-left: auto; }
+.trello-card .avatar {
+  width: 28px; height: 28px; border-radius: 50%; background: #333; color: #fff;
+  font-size: 0.7rem; display: flex; align-items: center; justify-content: center;
+  margin-left: -4px; border: 2px solid #fff; font-weight: 600;
+}
+.trello-add-card, .trello-add-list {
+  padding: 8px 12px; color: #5e6c84; cursor: pointer; border-radius: 8px;
+  font-size: 0.9rem;
+}
+.trello-add-card:hover, .trello-add-list:hover { background: rgba(9,30,66,.08); color: #172b4d; }
+.trello-add-list-box {
+  flex: 0 0 272px; background: rgba(255,255,255,.24); border-radius: 12px; padding: 8px;
+}
+.trello-add-list-box input { border-radius: 4px; }
+
+/* Modal carte – style Trello */
+.card-modal .modal-dialog { max-width: 768px; }
+#popupDates .modal-content, #popupMembers .modal-content, #popupBudget .modal-content,
+#popupLabel .modal-content, #popupChecklist .modal-content, #popupActivities .modal-content,
+#popupPreview .modal-content, #clItemModal .modal-content {
+  border: 2px solid #333;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+}
+.card-modal .modal-content { background: #f4f5f7; border: none; border-radius: 12px; }
+.card-modal .modal-body { padding: 16px 20px 24px; }
+.card-modal h2 { font-size: 1.25rem; font-weight: 700; color: #172b4d; }
+.card-modal .section-title {
+  font-size: 0.85rem; font-weight: 700; color: #172b4d;
+  margin: 16px 0 8px; display: flex; align-items: center; gap: 8px;
+}
+.card-modal textarea, .card-modal input[type=text] {
+  border-radius: 8px; border: none; background: #fff;
+  box-shadow: inset 0 0 0 2px transparent;
+}
+.card-modal textarea:focus, .card-modal input[type=text]:focus {
+  box-shadow: inset 0 0 0 2px #0079bf; outline: none;
+}
+.cl-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.cl-item.done span { text-decoration: line-through; color: #6b778c; }
+.progress { height: 8px; border-radius: 4px; background: #dfe1e6; }
+.progress-bar { background: #5ba4cf; }
+.comment-item { background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.color-dot {
+  width: 40px; height: 32px; border-radius: 4px; border: none; cursor: pointer;
+  margin: 2px;
+}
+.color-dot:hover { opacity: .85; transform: scale(1.05); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="trello-page">
+  <div class="trello-board-bg">
+    <div class="trello-header">
+      <h1><input type="text" autocomplete="off" id="boardNameInput" value="{{ board.name }}" 
+                 style="background:transparent;border:none;color:#fff;font-size:1.25rem;font-weight:700;width:200px;"
+                 onchange="renameBoard(this.value)" onkeydown="if(event.key==='Enter'){this.blur();event.preventDefault();}"></h1>
+      <div class="ms-auto d-flex gap-1">
+        {% if can_manage %}
+        <button type="button" class="btn btn-sm btn-light" data-bs-toggle="collapse" data-bs-target="#boardMembersPanel" title="Paramètres">
+          <i class="bi bi-gear"></i>
+        </button>
+        {% endif %}
+        <button type="button" class="btn btn-sm btn-light" onclick="document.getElementById('filterBar').classList.toggle('d-none')" title="Filtres">
+          <i class="bi bi-funnel"></i>
+        </button>
+      </div>
+    </div>
+    {% if can_manage %}
+    <div class="collapse m-2" id="boardMembersPanel">
+      <div class="d-flex gap-2">
+        <div class="bg-white rounded p-2" style="min-width:200px">
+          <div class="small fw-bold mb-1">Qui peut ouvrir ce tableau</div>
+          {% for u in all_users %}
+          <label class="d-flex align-items-center gap-2 mb-1 small">
+            <input type="checkbox" class="board-member-cb" value="{{ u.id }}" data-accounts="{{ u.allowed_account_ids()|join(',') if u.allowed_account_ids() else 'all' }}"
+                   {% if u.id in board_members|map(attribute='user_id')|list %}checked{% endif %}
+                   onchange="toggleBoardMember({{ u.id }}, this.checked); updateAccounts();">
+            {{ u.full_name }}
+          </label>
+          {% endfor %}
+        </div>
+        <div class="bg-white rounded p-2" style="min-width:220px;max-height:200px;overflow-y:auto" id="boardAccountsPanel">
+          <div class="small fw-bold mb-1">Plan comptable</div>
+          <div id="boardAccountsList" class="small"></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    <script>
+    const ALL_ACCOUNTS = [
+    {% for a in user_accounts %}
+    {id:{{ a.id }}, code:'{{ a.code|format_code }}', name:'{{ a.name[:30]|e }}'}{% if not loop.last %},{% endif %}
+    {% endfor %}
+    ];
+    function updateAccounts() {
+      const checked = [...document.querySelectorAll('.board-member-cb:checked')];
+      const box = document.getElementById('boardAccountsList');
+      if (!box) return;
+      if (!checked.length) { box.innerHTML = '<span class="text-muted">Aucun membre</span>'; return; }
+      const ids = new Set();
+      let all = false;
+      checked.forEach(cb => {
+        const acc = cb.dataset.accounts;
+        if (acc === 'all') all = true;
+        else (acc || '').split(',').filter(Boolean).forEach(id => ids.add(parseInt(id)));
+      });
+      const list = all ? ALL_ACCOUNTS : ALL_ACCOUNTS.filter(a => ids.has(a.id));
+      box.innerHTML = list.slice(0, 30).map(a => `<div>${a.code} ${a.name}</div>`).join('') || '<span class="text-muted">Aucun compte</span>';
+    }
+    document.addEventListener('DOMContentLoaded', updateAccounts);
+    </script>
+      {% if can_manage and pending_deletes %}
+      <div class="alert alert-warning m-2 py-2 small">
+        <strong>Demandes de suppression</strong>
+        {% for req in pending_deletes %}
+        {% set card = req.card %}
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <span>{{ req.requested_by.full_name if req.requested_by else '—' }} demande de supprimer « {{ card.title if card else '?' }} »</span>
+          <button class="btn btn-sm btn-success py-0" onclick="decideDelete({{ req.id }}, 'accept')">Accepter</button>
+          <button class="btn btn-sm btn-outline-danger py-0" onclick="decideDelete({{ req.id }}, 'refuse')">Refuser</button>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    <div class="filter-bar d-none" id="filterBar">
+      <span style="color:#fff;font-size:0.8rem;font-weight:600;">Filtres</span>
+      <input type="search" autocomplete="off" id="filterText" placeholder="Rechercher…" oninput="applyFilters()">
+      <select id="filterMember" onchange="applyFilters()">
+        <option value="">Tous les membres</option>
+        {% for u in users %}
+        <option value="{{ u.id }}">{{ u.full_name }}</option>
+        {% endfor %}
+        <option value="none">Non attribué</option>
+      </select>
+      <select id="filterLabel" onchange="applyFilters()">
+        <option value="">Toutes étiquettes</option>
+        {% for col, hex in label_hex.items() %}
+        <option value="{{ col }}">{{ col }}</option>
+        {% endfor %}
+      </select>
+      <select id="filterDue" onchange="applyFilters()">
+        <option value="">Toutes échéances</option>
+        <option value="overdue">En retard</option>
+        <option value="has_due">Avec date</option>
+        <option value="no_due">Sans date</option>
+      </select>
+      <span class="filter-clear" onclick="clearFilters()">Effacer</span>
+    </div>
+
+    <div class="trello-lists" id="boardLists">
+      {% for lst in lists %}
+      <div class="trello-list" data-list-id="{{ lst.id }}">
+        <div class="trello-list-header">
+          <input type="text" autocomplete="off" value="{{ lst.name }}" data-list-id="{{ lst.id }}"
+                 onchange="renameList(this)" onkeydown="if(event.key==='Enter'){this.blur();event.preventDefault();}">
+          <span class="text-muted small">{{ lst.active_cards()|length }}</span>
+        </div>
+        <div class="trello-cards"
+             data-list-id="{{ lst.id }}"
+             ondragover="onDragOver(event)"
+             ondragleave="onDragLeave(event)"
+             ondrop="onDrop(event)">
+          {% for card in lst.active_cards() %}
+          <div class="trello-card{% if card.id in pending_deletes|map(attribute='card_id')|list %} border border-danger border-3{% endif %}"
+               draggable="{% if can_manage %}true{% else %}false{% endif %}"
+               data-card-id="{{ card.id }}"
+               data-list-id="{{ lst.id }}"
+               data-members="{% for m in card.members %}{{ m.user_id }}{% if not loop.last %},{% endif %}{% endfor %}"
+               data-labels="{% for lab in card.labels %}{{ lab.color }}{% if not loop.last %},{% endif %}{% endfor %}"
+               data-due="{% if card.due_date %}{{ card.due_date.isoformat() }}{% endif %}"
+               data-overdue="{{ '1' if card.is_overdue() else '0' }}"
+               data-title="{{ card.title|lower }}"
+               ondragstart="onDragStart(event)"
+               ondragend="onDragEnd(event)"
+               onclick="openCard({{ card.id }})">
+            {% if card.cover_attachment_id %}
+            {% set cov = card.attachments|selectattr('id', 'equalto', card.cover_attachment_id)|first %}
+            {% if cov %}
+            <div class="cover" style="height:64px;background:url('/static/uploads/cards/{{ cov.filename }}') center/cover;"></div>
+            {% endif %}
+            {% elif card.cover_color %}
+            <div class="cover" style="background:{{ {'green':'#61bd4f','yellow':'#f2d600','orange':'#ff9f1a','red':'#eb5a46','purple':'#c377e0','blue':'#0079bf','sky':'#00c2e0','lime':'#51e898','pink':'#ff78cb','black':'#344563'}.get(card.cover_color, card.cover_color) }}"></div>
+            {% endif %}
+            {% if card.labels %}
+            <div class="labels">
+              {% for lab in card.labels %}
+              <span class="label-chip {% if lab.name %}has-name{% endif %}"
+                    style="background:{{ lab.color_hex() }}">{{ lab.name or '' }}</span>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <div class="title">{{ card.title }}</div>
+            <div class="badges">
+              {% if card.due_date %}
+              <span class="badge-due {% if card.is_overdue() %}overdue{% endif %}">
+                <i class="bi bi-clock"></i> {{ card.due_date.strftime('%d/%m/%y') }}{% if card.due_time %} {{ card.due_time }}{% endif %}
+              </span>
+              {% endif %}
+              {% set prog = card.checklist_progress() %}
+              {% if prog %}
+              <span><i class="bi bi-check2-square"></i> {{ prog[0] }}/{{ prog[1] }}</span>
+              {% endif %}
+              {% if card.comments %}
+              <span title="Messages"><i class="bi bi-chat-dots"></i> {{ card.comments|length }}</span>
+              {% set unread = card.comments|selectattr('is_read', 'equalto', False)|selectattr('user_id', 'ne', current_user.id)|list|length %}
+              {% if unread %}<span class="badge bg-danger rounded-pill" style="font-size:9px">{{ unread }}</span>{% endif %}
+              {% endif %}
+              {% if card.members %}
+              <div class="avatars">
+                {% for m in card.members[:4] %}
+                <span class="avatar" title="{{ m.user.full_name if m.user else '' }}">
+                  {{ (m.user.full_name or '?')[:1]|upper }}
+                </span>
+                {% endfor %}
+              </div>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% if 'faire' in lst.name|lower %}
+        <div class="trello-add-card" data-list-id="{{ lst.id }}" style="cursor:pointer;">
+          <i class="bi bi-plus"></i> Ajouter une carte
+        </div>
+        <div class="p-2 d-none add-card-form" data-list-id="{{ lst.id }}">
+          <textarea class="form-control form-control-sm mb-1" rows="2" placeholder="Titre de la carte…"></textarea>
+          <button type="button" class="btn btn-sm btn-primary btn-add-card" data-list-id="{{ lst.id }}">Ajouter</button>
+          <button type="button" class="btn btn-sm btn-link btn-cancel-card">×</button>
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal détail carte -->
+<div class="modal fade card-modal" id="cardModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="flex-grow-1 me-2 d-flex align-items-center" style="font-size:1.1rem;font-weight:700">
+            <input type="text" autocomplete="off" id="cmTitle" class="form-control border-0 bg-transparent fw-bold px-0"
+                   onchange="saveCardField('title', this.value)" style="font-size:1.1rem;width:auto;min-width:40px;flex:0 1 auto">
+            <span id="cmTitleMeta" style="font-size:1.1rem;font-weight:700;color:#212529;white-space:nowrap"></span>
+          </div>
+          <div class="d-flex gap-1">
+            <button type="button" class="btn btn-sm btn-light py-0" onclick="toggleCardSize()" title="Agrandir">□</button>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-7">
+            <div class="section-title"><i class="bi bi-text-left"></i> Description</div>
+            <textarea id="cmDesc" class="form-control mb-3" rows="3"
+                      onchange="saveCardField('description', this.value)"></textarea>
+
+            <div id="cmLabelsSection" class="d-none mb-2">
+              <div class="section-title"><i class="bi bi-tags"></i> Étiquettes</div>
+              <div id="cmLabels" class="d-flex flex-wrap gap-1"></div>
+            </div>
+
+            <div id="cmChecklists"></div>
+
+            <div class="section-title"><i class="bi bi-chat-dots"></i> Messages</div>
+            <div style="display:flex;flex-direction:column;height:320px">
+              <div id="cmComments" style="flex:1;overflow-y:auto;background:#efeae2;border-radius:8px;padding:8px;"></div>
+              <div class="input-group mt-1">
+                <div id="replyBar" class="d-none w-100 small bg-light p-1 mb-1 rounded">
+                  <span id="replyText"></span>
+                  <button type="button" class="btn-close btn-sm float-end" onclick="clearReply()"></button>
+                </div>
+                <textarea id="cmComment" class="form-control" rows="1" placeholder="Message" style="resize:none"
+                          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}"></textarea>
+                <button type="button" class="btn btn-primary" onclick="postComment()" title="Envoyer">
+                  <i class="bi bi-send"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-md-5">
+            <div class="section-title">Activité</div>
+            <div class="d-grid gap-1 mb-2">
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="toggleSection('cmCoverBlock')">
+                <i class="bi bi-image"></i> Couverture
+              </button>
+              <div id="cmCoverBlock" class="d-none p-2 bg-light rounded">
+                <div id="cmCover" class="d-flex flex-wrap gap-1 mb-1"></div>
+                <div class="small text-muted">Cliquez une PJ pour en faire la couverture.</div>
+              </div>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="openPopup('popupLabel')">
+                <i class="bi bi-tag"></i> Étiquette
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="openPopup('popupDates')">
+                <i class="bi bi-clock"></i> Dates
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="openPopup('popupChecklist')">
+                <i class="bi bi-check2-square"></i> Checklist
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="openPopup('popupBudget')">
+                <i class="bi bi-cash"></i> Budget
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="alert('Brouillard')">
+                <i class="bi bi-pencil-square"></i> Brouillard
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="alert('Rapports')">
+                <i class="bi bi-file-earmark-text"></i> Rapports
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="toggleSection('cmAttBlock')">
+                <i class="bi bi-paperclip"></i> Pièces jointes
+              </button>
+              <div id="cmAttBlock" class="d-none p-2 bg-light rounded">
+                <div id="cmAttachments" class="d-flex flex-wrap gap-1 mb-1"></div>
+                <input type="file" id="cmFile" class="form-control form-control-sm mb-1" onchange="uploadAttachment()">
+                <div class="small text-muted">Cliquez une PJ pour l'aperçu.</div>
+              </div>
+            </div>
+
+            <div class="section-title">Paramètres</div>
+            <div class="d-grid gap-1 mb-2">
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="openPopup('popupMembers')">
+                <i class="bi bi-person"></i> Membres
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="alert('Plan comptable')">
+                <i class="bi bi-journal-text"></i> Plan comptable
+              </button>
+            </div>
+
+            <div class="section-title">Actions</div>
+            <div class="d-grid gap-1">
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="openPopup('popupActivities')">
+                <i class="bi bi-clock-history"></i> Voir détails
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="duplicateCard()">
+                <i class="bi bi-copy"></i> Dupliquer
+              </button>
+              <button type="button" class="btn btn-sm btn-light text-start" onclick="requestDelete()">
+                <i class="bi bi-x-lg"></i> Supprimer la carte
+              </button>
+            </div>
+          </div>
+        </div>
+
+<!-- Popups carte -->
+<div class="modal fade" id="popupDates" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title">Dates</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <label class="small">Début</label>
+    <div class="d-flex gap-1 mb-2">
+      <input type="text" autocomplete="off" id="cmStartDate" class="form-control form-control-sm" placeholder="jj/mm/aa" style="flex:2" spellcheck="false" inputmode="numeric">
+      <div style="flex:1">
+        <label class="small text-muted" style="font-size:10px">Heure</label>
+        <input type="text" autocomplete="off" id="cmStartTime" class="form-control form-control-sm" placeholder="hh:mm" spellcheck="false" inputmode="numeric">
+      </div>
+    </div>
+    <label class="small">Échéance</label>
+    <div class="d-flex gap-1 mb-3">
+      <input type="text" autocomplete="off" id="cmDueDate" class="form-control form-control-sm" placeholder="jj/mm/aa" style="flex:2" spellcheck="false" inputmode="numeric">
+      <div style="flex:1">
+        <label class="small text-muted" style="font-size:10px">Heure</label>
+        <input type="text" autocomplete="off" id="cmDueTime" class="form-control form-control-sm" placeholder="hh:mm" spellcheck="false" inputmode="numeric">
+      </div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="button" class="btn btn-sm btn-primary" onclick="saveDates()">Enregistrer</button>
+      <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Annuler</button>
+    </div>
+    <div id="dateError" class="text-danger small mt-1 d-none"></div>
+  </div>
+</div></div></div>
+
+<div class="modal fade" id="popupMembers" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title">Membres</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <div id="cmMembersList">
+      {% for u in users %}
+      <label class="d-flex align-items-center gap-2 mb-1 small">
+        <input type="checkbox" class="cm-member" value="{{ u.id }}">
+        {{ u.full_name }}
+      </label>
+      {% endfor %}
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button type="button" class="btn btn-sm btn-primary" onclick="saveMembers()">Enregistrer</button>
+      <button type="button" class="btn btn-sm btn-light" data-bs-dismiss="modal">Annuler</button>
+    </div>
+  </div>
+</div></div></div>
+
+<div class="modal fade" id="popupBudget" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title" id="budgetTitle">Budget</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <div id="cmBudget" class="mb-2"></div>
+    <table class="table table-sm mb-2">
+      <thead class="small">
+        <tr>
+          <th>Code</th>
+          <th>Description</th>
+          <th colspan="2">Quantité</th>
+          <th colspan="2">Occurrence</th>
+          <th colspan="2">Coût</th>
+          <th></th>
+        </tr>
+        <tr>
+          <th></th><th></th>
+          <th>N</th><th>Unité</th>
+          <th>N</th><th>Unité</th>
+          <th>Unitaire</th><th>Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><select id="cmBudAccount" class="form-select form-select-sm"><option value="">—</option>{% for a in user_accounts %}<option value="{{ a.id }}">{{ a.code|format_code }}</option>{% endfor %}</select></td>
+          <td><input type="text" autocomplete="off" id="cmBudDesc" class="form-control form-control-sm"></td>
+          <td><input type="text" autocomplete="off" id="cmBudQty" class="form-control form-control-sm" style="width:50px"></td>
+          <td><input type="text" autocomplete="off" id="cmBudQtyUnit" class="form-control form-control-sm" style="width:50px"></td>
+          <td><input type="text" autocomplete="off" id="cmBudOcc" class="form-control form-control-sm" style="width:50px"></td>
+          <td><input type="text" autocomplete="off" id="cmBudOccUnit" class="form-control form-control-sm" style="width:50px"></td>
+          <td><input type="text" autocomplete="off" id="cmBudUnitCost" class="form-control form-control-sm" style="width:70px"></td>
+          <td><span id="cmBudTotal" class="small">0</span></td>
+          <td><button type="button" class="btn btn-sm btn-primary" onclick="addBudgetLine()">+</button></td>
+        </tr>
+      </tbody>
+    </table>
+    <select id="cmBudCurrency" class="form-select form-select-sm" style="width:auto"><option value="MGA">MGA</option><option value="USD">USD</option><option value="EUR">EUR</option></select>
+  </div>
+</div></div></div>
+
+<div class="modal fade" id="popupLabel" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title">Étiquette</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <input type="text" autocomplete="off" id="popupLabelName" class="form-control form-control-sm mb-2" placeholder="Nom">
+    <div class="d-flex flex-wrap gap-1 mb-2" id="popupLabelColors"></div>
+    <button type="button" class="btn btn-sm btn-primary" onclick="addLabelFromPopup()">Ajouter</button>
+  </div>
+</div></div></div>
+
+<div class="modal fade" id="popupChecklist" tabindex="-1"><div class="modal-dialog modal-sm"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title">Checklist</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body">
+    <input type="text" autocomplete="off" id="popupClTitle" class="form-control form-control-sm mb-2" placeholder="Titre" value="Checklist">
+    <div id="popupClUsers" class="mb-2"></div>
+    <button type="button" class="btn btn-sm btn-primary" onclick="addChecklistFromPopup()">Ajouter</button>
+  </div>
+</div></div></div>
+
+<div class="modal fade" id="popupActivities" tabindex="-1"><div class="modal-dialog"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title">Activités des membres</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body" id="cmActivities"></div>
+</div></div></div>
+
+<div class="modal fade" id="popupPreview" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content">
+  <div class="modal-header py-2"><h6 class="modal-title" id="previewTitle">Aperçu</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+  <div class="modal-body text-center" id="previewBody"></div>
+</div></div></div>
+
+<!-- Modal détail checklist -->
+<div class="modal fade" id="clItemModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title">Élément</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="small">Titre</label>
+        <input type="text" autocomplete="off" id="cliText" class="form-control form-control-sm mb-2" tabindex="1">
+        <div class="row g-1 mb-2">
+          <div class="col-6">
+            <label class="small">Début</label>
+            <input type="text" autocomplete="off" id="cliStart" class="form-control form-control-sm" placeholder="jj/mm/aa hh:mm" tabindex="2">
+          </div>
+          <div class="col-6">
+            <label class="small">Fin</label>
+            <input type="text" autocomplete="off" id="cliEnd" class="form-control form-control-sm" placeholder="jj/mm/aa hh:mm" tabindex="3">
+          </div>
+        </div>
+        <label class="small">Participants</label>
+        <select id="cliParticipants" class="form-select form-select-sm mb-2" multiple size="4" tabindex="4"></select>
+        <label class="small">Préalables</label>
+        <select id="cliPrereq" class="form-select form-select-sm mb-2" multiple size="3" tabindex="5"></select>
+      </div>
+      <div class="modal-footer py-2">
+        <button type="button" class="btn btn-sm btn-primary" onclick="saveClItem()" tabindex="6">Ajouter</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const BOARD_ID = {{ board.id }};
+const HIGHLIGHT_ID = {{ request.args.get('highlight', 0)|int }};
+if (HIGHLIGHT_ID) {
+  document.addEventListener('DOMContentLoaded', function() {
+    const el = document.querySelector('.trello-card[data-card-id="' + HIGHLIGHT_ID + '"]');
+    if (el) {
+      el.classList.add('highlight-card');
+      el.scrollIntoView({behavior: 'smooth', block: 'center'});
+      setTimeout(function() { el.classList.remove('highlight-card'); }, 6000);
+    }
+  });
+}
+const BOARD_USERS = {{ users|map(attribute='full_name')|list|tojson }};
+let currentCardId = null;
+let dragCardId = null;
+let dragFromList = null;
+
+// ─── Filtres ─────────────────────────────────────────
+function applyFilters() {
+  const text = (document.getElementById('filterText').value || '').toLowerCase().trim();
+  const member = document.getElementById('filterMember').value;
+  const label = document.getElementById('filterLabel').value;
+  const due = document.getElementById('filterDue').value;
+  document.querySelectorAll('.trello-card').forEach(card => {
+    let show = true;
+    const title = card.dataset.title || '';
+    const members = (card.dataset.members || '').split(',').filter(Boolean);
+    const labels = (card.dataset.labels || '').split(',').filter(Boolean);
+    const hasDue = !!(card.dataset.due);
+    const overdue = card.dataset.overdue === '1';
+    if (text && !title.includes(text)) show = false;
+    if (member === 'none' && members.length) show = false;
+    if (member && member !== 'none' && !members.includes(member)) show = false;
+    if (label && !labels.includes(label)) show = false;
+    if (due === 'overdue' && !overdue) show = false;
+    if (due === 'has_due' && !hasDue) show = false;
+    if (due === 'no_due' && hasDue) show = false;
+    card.classList.toggle('filter-hide', !show);
+  });
+}
+function clearFilters() {
+  document.getElementById('filterText').value = '';
+  document.getElementById('filterMember').value = '';
+  document.getElementById('filterLabel').value = '';
+  document.getElementById('filterDue').value = '';
+  applyFilters();
+}
+
+// ─── Drag & drop ───────────────────────────────────────
+function onDragStart(e) {
+  const card = e.target.closest('.trello-card');
+  if (!card) return;
+  dragCardId = card.dataset.cardId;
+  dragFromList = card.parentElement;
+  card.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragCardId);
+  e.stopPropagation();
+}
+function onDragEnd(e) {
+  const card = e.target.closest('.trello-card');
+  if (card) card.classList.remove('dragging');
+  document.querySelectorAll('.trello-cards').forEach(c => c.classList.remove('drag-over'));
+}
+function onDragOver(e) {
+  e.preventDefault();
+  e.currentTarget.classList.add('drag-over');
+}
+function onDragLeave(e) {
+  e.currentTarget.classList.remove('drag-over');
+}
+function onDrop(e) {
+  e.preventDefault();
+  const col = e.currentTarget;
+  col.classList.remove('drag-over');
+  const cardId = e.dataTransfer.getData('text/plain') || dragCardId;
+  const listId = col.dataset.listId;
+  if (!cardId || !listId) return;
+  const card = document.querySelector('.trello-card[data-card-id="'+cardId+'"]');
+  if (!card) return;
+  col.appendChild(card);
+  card.dataset.listId = listId;
+  // positions
+  const cards = [...col.querySelectorAll('.trello-card')];
+  const pos = cards.indexOf(card);
+  fetch('/projects/cards/' + cardId + '/move', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({list_id: parseInt(listId), position: pos})
+  }).then(r => r.json()).then(d => {
+    if (!d.ok) alert(d.error || 'Déplacement impossible');
+  });
+}
+
+// Sync automatique au retour sur la page
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible') location.reload();
+});
+
+// ─── Listes ────────────────────────────────────────────
+function renameList(input) {
+  const id = input.dataset.listId;
+  const fd = new FormData();
+  fd.append('name', input.value);
+  fetch('/projects/lists/' + id + '/rename', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  });
+}
+function renameBoard(name) {
+  const fd = new FormData();
+  fd.append('name', name);
+  fetch('/projects/' + BOARD_ID + '/rename', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  });
+}
+function toggleBoardMember(userId, checked) {
+  const fd = new FormData();
+  fd.append('user_id', userId);
+  fetch('/projects/' + BOARD_ID + '/members', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => location.reload());
+}
+
+// ─── Cartes (ajout rapide) ─────────────────────────────
+document.addEventListener('click', function(e) {
+  const addBtn = e.target.closest('.trello-add-card');
+  if (addBtn) {
+    addBtn.classList.add('d-none');
+    const form = addBtn.nextElementSibling;
+    if (form) { form.classList.remove('d-none'); form.querySelector('textarea').focus(); }
+    return;
+  }
+  const cancel = e.target.closest('.btn-cancel-card');
+  if (cancel) {
+    const form = cancel.closest('.add-card-form');
+    form.classList.add('d-none');
+    form.previousElementSibling.classList.remove('d-none');
+    return;
+  }
+  const submit = e.target.closest('.btn-add-card');
+  if (submit) {
+    const form = submit.closest('.add-card-form');
+    const title = form.querySelector('textarea').value.trim();
+    const listId = submit.dataset.listId;
+    if (!title) { alert('Indiquez un titre.'); return; }
+    const fd = new FormData();
+    fd.append('title', title);
+    fetch('/projects/lists/' + listId + '/cards', {
+      method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+    }).then(function(r) {
+      return r.text().then(function(t) {
+        try { return JSON.parse(t); } catch (e) { return {ok: false, error: t.slice(0, 200) || ('HTTP ' + r.status)}; }
+      });
+    }).then(function(data) {
+      if (data.ok) location.reload();
+      else alert(data.error || 'Impossible d\'ajouter la carte.');
+    }).catch(function(err) { alert('Erreur : ' + (err.message || err)); });
+  }
+});
+function toggleCardSize() {
+  const dlg = document.querySelector('#cardModal .modal-dialog');
+  dlg.classList.toggle('modal-xl');
+  dlg.classList.toggle('modal-fullscreen');
+}
+function toggleSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('d-none');
+}
+
+// ─── Modal carte ───────────────────────────────────────
+function openCard(id) {
+  currentCardId = id;
+  fetch('/projects/cards/' + id)
+    .then(r => r.json())
+    .then(data => {
+      if (!data.ok) return;
+      document.getElementById('cmTitle').value = data.title;
+      document.getElementById('cmTitleMeta').textContent = ', ' + [data.list_name, data.board_name].filter(Boolean).join(', ');
+      document.getElementById('budgetTitle').textContent = 'Budget : ' + data.title + ', ' + (data.board_name || '');
+      document.getElementById('cmDesc').value = data.description;
+      const sd = (data.start_date || '').split(' ');
+      document.getElementById('cmStartDate').value = sd[0] || '';
+      document.getElementById('cmStartTime').value = sd[1] || '';
+      const dd = (data.due_date || '').split(' ');
+      document.getElementById('cmDueDate').value = dd[0] || '';
+      document.getElementById('cmDueTime').value = dd[1] || '';
+
+      // labels
+      const labBox = document.getElementById('cmLabels');
+      labBox.innerHTML = '';
+      if (data.labels.length) {
+        document.getElementById('cmLabelsSection').classList.remove('d-none');
+        data.labels.forEach(l => {
+          labBox.innerHTML += `<span class="badge me-1" data-color="${l.color}" style="background:${l.hex}">${l.name || l.color}
+            <button type="button" class="btn-close btn-close-white btn-sm ms-1" style="font-size:0.5rem"
+              onclick="deleteLabel(${l.id})"></button></span>`;
+        });
+      } else {
+        document.getElementById('cmLabelsSection').classList.add('d-none');
+      }
+
+      // members checkboxes
+      document.querySelectorAll('.cm-member').forEach(cb => {
+        cb.checked = data.members.some(m => m.id == cb.value);
+      });
+
+      // checklists
+      const clBox = document.getElementById('cmChecklists');
+      clBox.innerHTML = '';
+      data.checklists.forEach(cl => {
+        let html = `<div class="section-title d-flex justify-content-between align-items-center">
+          <span><i class="bi bi-check2-square"></i> ${cl.title}</span>
+          <span>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 me-1" title="Modifier" onclick="editChecklist(${cl.id})">✎</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 me-1" title="Ajouter" onclick="document.getElementById('newItem${cl.id}').focus()">+</button>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0" title="Effacer" onclick="deleteChecklist(${cl.id})">×</button>
+          </span>
+        </div>`;
+        cl.items.forEach(it => {
+          const parts = (it.participants || '').split(',').map(s => s.trim()).filter(Boolean).join('; ');
+          const dates = [it.time].filter(Boolean).join('; ');
+          const extra = [dates, parts].filter(Boolean).join('; ');
+          html += `<div class="d-flex align-items-center gap-2 mb-1">
+            <input type="checkbox" ${it.is_done ? 'checked' : ''} onchange="toggleItem(${it.id})">
+            <span class="flex-grow-1 small">${it.text}${extra ? ' <span class="text-muted">(' + extra + ')</span>' : ''}</span>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0" title="Modifier" onclick="editItem(${it.id})">✎</button>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="deleteItem(${it.id})">×</button>
+          </div>`;
+        });
+        html += `<div class="input-group input-group-sm mt-1 mb-2">
+          <input type="text" autocomplete="off" class="form-control" id="newItem${cl.id}"
+            onkeydown="if(event.key==='Enter'){addItem(${cl.id});event.preventDefault();}">
+          <button class="btn btn-outline-secondary" type="button" onclick="addItem(${cl.id})">+</button>
+        </div>`;
+        clBox.innerHTML += html;
+      });
+
+      // budget
+      const budBox = document.getElementById('cmBudget');
+      if (budBox) {
+        budBox.innerHTML = (data.budget_lines || []).map(bl =>
+          `<div class="d-flex align-items-center gap-2 mb-1 small">
+            <span class="badge ${bl.kind === 'ordinaire' ? 'bg-secondary' : 'bg-dark'}">${bl.kind === 'ordinaire' ? 'Ord.' : 'Spéc.'}</span>
+            <span class="fw-semibold">${bl.account_code}</span>
+            <span>${bl.description || bl.account_name}</span>
+            <span class="ms-auto">${fmtAmount(bl.amount, bl.currency)} ${bl.currency}</span>
+            <button type="button" class="btn btn-sm btn-outline-danger py-0" onclick="deleteBudgetLine(${bl.id})">×</button>
+          </div>`
+        ).join('') || '<span class="text-muted small">Aucune ligne</span>';
+      }
+
+      // couverture + pièces jointes
+      const coverBox = document.getElementById('cmCover');
+      const attBox = document.getElementById('cmAttachments');
+      const thumb = a => {
+        const isImg = /\.(jpe?g|png|gif|webp)$/i.test(a.name);
+        return isImg
+          ? `<img src="${a.url}" style="width:48px;height:48px;object-fit:cover;border-radius:4px;" title="${a.name}">`
+          : `<span class="badge bg-secondary p-2" title="${a.name}"><i class="bi bi-file-earmark"></i></span>`;
+      };
+      if (coverBox) {
+        coverBox.innerHTML = data.attachments.map(a =>
+          `<div style="width:48px;height:48px;cursor:pointer;${a.id==data.cover_attachment_id?'outline:2px solid #dc3545;':''}" title="Couverture" onclick="setCover(${a.id})">${thumb(a)}</div>`
+        ).join('') || '<span class="text-muted small">Aucune</span>';
+      }
+      if (attBox) {
+        attBox.innerHTML = data.attachments.map(a =>
+          `<div style="width:48px;height:48px;cursor:pointer;" title="Aperçu" onclick="previewAttachment('${a.url}','${a.name}')">${thumb(a)}</div>`
+        ).join('') || '<span class="text-muted small">Aucune</span>';
+      }
+      const mv = document.getElementById('cmMoveBoard');
+      if (mv && data.boards) {
+        mv.innerHTML = '<option value="">— Déplacer vers un tableau —</option>' +
+          data.boards.filter(b => b.id != data.board_id).map(b => `<option value="${b.id}">${b.name}</option>`).join('');
+      }
+
+      // comments WhatsApp style
+      const cBox = document.getElementById('cmComments');
+      let lastDay = '';
+      cBox.innerHTML = data.comments.map(c => {
+        const mine = c.user_id == data.current_user_id;
+        let html = '';
+        if (c.day && c.day !== lastDay) {
+          html += `<div class="text-center my-1"><span class="badge bg-secondary" style="font-size:10px">${c.day}</span></div>`;
+          lastDay = c.day;
+        }
+        html += `<div class="d-flex mb-1 ${mine ? 'justify-content-end' : 'justify-content-start'}">
+          <div style="max-width:75%;background:${mine ? '#d9fdd3' : '#fff'};border-radius:8px;padding:6px 8px;box-shadow:0 1px 1px rgba(0,0,0,.1);cursor:pointer" onclick="setReply(${c.id},'${(c.user||'').replace(/'/g,'')}','${(c.body||'').slice(0,40).replace(/'/g,'')}')">
+            ${c.reply_to ? `<div class="small px-1 mb-1" style="border-left:3px solid #128c7e;background:rgba(0,0,0,.05);border-radius:4px"><strong>${c.reply_user||''}</strong><br>${c.reply_to}</div>` : ''}
+            ${!mine ? `<div class="small fw-semibold" style="color:#128c7e">${c.user}</div>` : ''}
+            <div class="small" style="white-space:pre-wrap">${c.body}</div>
+            <div class="text-end" style="font-size:10px;color:#667">${c.time} ${mine ? (c.is_read ? '<span style="color:#53bdeb">✓✓</span>' : '<span style="color:#8696a0">✓</span>') : ''}</div>
+          </div>
+        </div>`;
+        return html;
+      }).join('') || '';
+      cBox.scrollTop = cBox.scrollHeight;
+
+      // activités (sans les commentaires)
+      const actBox = document.getElementById('cmActivities');
+      if (actBox) {
+        actBox.innerHTML = (data.activities || []).filter(a => !a.action.includes('commenté')).map(a =>
+          `<div class="small text-muted mb-1">${a.date} · <strong>${a.user}</strong> ${a.action}</div>`
+        ).join('') || '<span class="text-muted small">Aucune activité</span>';
+      }
+
+      new bootstrap.Modal(document.getElementById('cardModal')).show();
+    });
+}
+
+function saveAndClose() {
+  if (!currentCardId) return;
+  const title = document.getElementById('cmTitle').value;
+  const desc = document.getElementById('cmDesc').value;
+  const start = [document.getElementById('cmStartDate').value, document.getElementById('cmStartTime').value].filter(Boolean).join(' ');
+  const due = [document.getElementById('cmDueDate').value, document.getElementById('cmDueTime').value].filter(Boolean).join(' ');
+  const comment = (document.getElementById('cmComment').value || '').trim();
+
+  const body = {
+    title: title,
+    description: desc,
+    start_date: start,
+    due_date: due
+  };
+
+  const doClose = () => {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('cardModal'));
+    if (modal) modal.hide();
+    location.reload();
+  };
+
+  fetch('/projects/cards/' + currentCardId + '/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify(body)
+  }).then(() => {
+    if (comment) {
+      return fetch('/projects/cards/' + currentCardId + '/comments', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+        body: JSON.stringify({body: comment})
+      }).then(() => doClose());
+    }
+    doClose();
+  });
+}
+
+function parseFR(s) {
+  const m = (s || '').match(/(\d{2})\/(\d{2})\/(\d{2})/);
+  if (!m) return null;
+  return new Date(2000 + parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
+}
+function checkDates() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const start = parseFR(document.getElementById('cmStartDate').value);
+  const due = parseFR(document.getElementById('cmDueDate').value);
+  const startTime = document.getElementById('cmStartTime').value || '00:00';
+  const dueTime = document.getElementById('cmDueTime').value || '00:00';
+  if (start && start < today) {
+    alert('La date de début ne peut pas être antérieure à aujourd\'hui.');
+    return false;
+  }
+  if (due && due < today) {
+    alert('La date d\'échéance ne peut pas être antérieure à aujourd\'hui.');
+    return false;
+  }
+  if (start && due && start > due) {
+    alert('La date de début ne peut pas être après l\'échéance.');
+    return false;
+  }
+  // Même jour : heure d'échéance >= heure de début
+  if (start && due && start.getTime() === due.getTime() && startTime > dueTime) {
+    alert('L\'heure d\'échéance ne peut pas être avant l\'heure de début.');
+    return false;
+  }
+  return true;
+}
+function getDateVal(prefix) {
+  const d = document.getElementById(prefix + 'DD').value.padStart(2,'0');
+  const m = document.getElementById(prefix + 'MM').value.padStart(2,'0');
+  const y = document.getElementById(prefix + 'YY').value.padStart(2,'0');
+  if (!d || d === '00' || !m || m === '00') return '';
+  return d + '/' + m + '/' + (y || String(new Date().getFullYear() % 100).padStart(2,'0'));
+}
+function saveDates() {
+  const startOk = formatDateSmart(document.getElementById('cmStartDate'));
+  const dueOk = formatDateSmart(document.getElementById('cmDueDate'));
+  if (!startOk || !dueOk) return;
+  formatTimeSmart(document.getElementById('cmStartTime'));
+  formatTimeSmart(document.getElementById('cmDueTime'));
+  const startVal = document.getElementById('cmStartDate').value;
+  const dueVal = document.getElementById('cmDueDate').value;
+  const today = new Date(); today.setHours(0,0,0,0);
+  function parseFR(s) {
+    if (!s) return null;
+    const p = s.split('/');
+    if (p.length < 3) return null;
+    return new Date(2000 + parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+  }
+  const startDate = parseFR(startVal);
+  const dueDate = parseFR(dueVal);
+  if (startDate && startDate < today) { alert('La date de début ne peut pas être avant aujourd\'hui.'); return; }
+  if (startDate && dueDate && dueDate < startDate) { alert('L\'échéance ne peut pas être avant le début.'); return; }
+  const start = [startVal, document.getElementById('cmStartTime').value].filter(Boolean).join(' ');
+  const due = [dueVal, document.getElementById('cmDueTime').value].filter(Boolean).join(' ');
+  Promise.all([
+    fetch('/projects/cards/' + currentCardId + '/update', {
+      method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+      body: JSON.stringify({start_date: start})
+    }),
+    fetch('/projects/cards/' + currentCardId + '/update', {
+      method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+      body: JSON.stringify({due_date: due})
+    })
+  ]).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('popupDates')).hide();
+    openCard(currentCardId);
+  });
+}
+function saveMembers() {
+  const checked = [...document.querySelectorAll('#cmMembersList .cm-member:checked')].map(c => c.value);
+  fetch('/projects/cards/' + currentCardId + '/members', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({user_ids: checked})
+  }).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('popupMembers')).hide();
+    openCard(currentCardId);
+  });
+}
+function saveCardField(field, value) {
+  if (!currentCardId) return;
+  const body = {};
+  body[field] = value;
+  fetch('/projects/cards/' + currentCardId + '/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify(body)
+  });
+}
+
+function toggleMember(userId, checked) {
+  if (!currentCardId) return;
+  const fd = new FormData();
+  fd.append('user_id', userId);
+  fetch('/projects/cards/' + currentCardId + '/members', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  });
+}
+
+function openPopup(id) {
+  if (id === 'popupLabel') {
+    const colors = {{ label_colors|tojson }};
+    const hex = {green:'#61bd4f',yellow:'#f2d600',orange:'#ff9f1a',red:'#eb5a46',purple:'#c377e0',blue:'#0079bf',sky:'#00c2e0',lime:'#51e898',pink:'#ff78cb',black:'#344563'};
+    document.getElementById('popupLabelColors').innerHTML = colors.map(c =>
+      '<button type="button" class="color-dot" data-color="' + c + '" style="background:' + (hex[c]||'#0079bf') + '" onclick="this.parentElement.querySelectorAll(\'.color-dot\').forEach(d=>d.classList.remove(\'selected\'));this.classList.add(\'selected\');"></button>'
+    ).join('');
+  }
+  if (id === 'popupChecklist') {
+    document.getElementById('popupClUsers').innerHTML = BOARD_USERS.map(n =>
+      '<label class="d-flex align-items-center gap-2 mb-1 small"><input type="checkbox" value="' + n + '"> ' + n + '</label>'
+    ).join('');
+  }
+  const el = document.getElementById(id);
+  const m = bootstrap.Modal.getOrCreateInstance(el);
+  m.show();
+}
+function addLabelFromPopup() {
+  const name = document.getElementById('popupLabelName').value.trim();
+  const color = document.querySelector('#popupLabelColors .color-dot.selected')?.dataset.color || 'blue';
+  const existingNames = [...document.querySelectorAll('#cmLabels .badge')].map(b => b.textContent.trim().toLowerCase());
+  const existingColors = [...document.querySelectorAll('#cmLabels .badge')].map(b => b.dataset.color || '');
+  if (existingNames.includes(name.toLowerCase())) { alert('Nom déjà utilisé.'); return; }
+  if (existingColors.includes(color)) { alert('Couleur déjà utilisée.'); return; }
+  fetch('/projects/cards/' + currentCardId + '/labels', {
+    method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({name, color})
+  }).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('popupLabel')).hide();
+    openCard(currentCardId);
+  });
+}
+function addChecklistFromPopup() {
+  const title = document.getElementById('popupClTitle').value.trim() || 'Checklist';
+  const names = [...document.querySelectorAll('#popupClUsers input:checked')].map(c => c.value);
+  fetch('/projects/cards/' + currentCardId + '/checklists', {
+    method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({title: title + (names.length ? ' [' + names.join(', ') + ']' : '')})
+  }).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('popupChecklist')).hide();
+    openCard(currentCardId);
+  });
+}
+function editChecklist(id) {
+  const title = prompt('Nouveau titre :');
+  if (title) renameChecklist(id, title);
+}
+function editItem(id) {
+  pendingClId = null;
+  window._editItemId = id;
+  const span = event.target.closest('.d-flex').querySelector('.flex-grow-1');
+  const text = span ? span.textContent.split('(')[0].trim() : '';
+  document.getElementById('cliText').value = text;
+  document.getElementById('cliStart').value = '';
+  document.getElementById('cliEnd').value = '';
+  const sel = document.getElementById('cliParticipants');
+  sel.innerHTML = BOARD_USERS.map(n => `<option value="${n}">${n}</option>`).join('');
+  const pre = document.getElementById('cliPrereq');
+  pre.innerHTML = '';
+  const modal = new bootstrap.Modal(document.getElementById('clItemModal'));
+  modal.show();
+  setTimeout(() => document.getElementById('cliText').focus(), 300);
+}
+function setCover(attId) {
+  fetch('/projects/cards/' + currentCardId + '/cover', {
+    method: 'POST', headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({attachment_id: attId})
+  }).then(() => openCard(currentCardId));
+}
+function previewAttachment(url, name) {
+  document.getElementById('previewTitle').textContent = name;
+  const body = document.getElementById('previewBody');
+  if (/\.(png|jpe?g|gif|webp)$/i.test(url)) {
+    body.innerHTML = `<img src="${url}" class="img-fluid" style="max-height:70vh">`;
+  } else {
+    body.innerHTML = `<a href="${url}" target="_blank" class="btn btn-primary">Ouvrir ${name}</a>`;
+  }
+  new bootstrap.Modal(document.getElementById('popupPreview')).show();
+}
+function deleteLabel(id) {
+  fetch('/projects/labels/' + id, {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => openCard(currentCardId));
+}
+
+function promptChecklist() {
+  if (!currentCardId) return;
+  const title = prompt('Titre de la checklist :', 'Checklist');
+  if (!title) return;
+  const names = BOARD_USERS.filter(n => confirm('Attribuer à ' + n + ' ?'));
+  fetch('/projects/cards/' + currentCardId + '/checklists', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({title: title + (names.length ? ' [' + names.join(', ') + ']' : '')})
+  }).then(() => openCard(currentCardId));
+}
+
+let pendingClId = null;
+function renameChecklist(id, title) {
+  fetch('/projects/checklists/' + id + '/rename', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({title: title})
+  });
+}
+function deleteChecklist(id) {
+  if (!confirm('Effacer cette checklist ?')) return;
+  fetch('/projects/checklists/' + id + '/delete', {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => openCard(currentCardId));
+}
+function cancelActivity() {
+  if (!currentCardId || !confirm("Annuler cette activité ? Elle sera déplacée dans Annulé.")) return;
+  const annule = document.querySelector('.trello-list input[value="Annulé"]');
+  const listId = annule ? annule.dataset.listId : null;
+  if (!listId) { alert('Liste Annulé introuvable.'); return; }
+  fetch('/projects/cards/' + currentCardId + '/move', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({list_id: parseInt(listId)})
+  }).then(() => location.reload());
+}
+
+function addItem(clId) {
+  const input = document.getElementById('newItem' + clId);
+  const text = (input.value || '').trim();
+  if (!text) return;
+  pendingClId = clId;
+  document.getElementById('cliText').value = text;
+  document.getElementById('cliStart').value = '';
+  document.getElementById('cliEnd').value = '';
+  const sel = document.getElementById('cliParticipants');
+  sel.innerHTML = BOARD_USERS.map(n => `<option value="${n}">${n}</option>`).join('');
+  const pre = document.getElementById('cliPrereq');
+  const items = [];
+  document.querySelectorAll('#cmChecklists .flex-grow-1').forEach(el => {
+    const t = el.textContent.split('(')[0].trim();
+    if (t) items.push(t);
+  });
+  pre.innerHTML = items.map(t => `<option value="${t}">${t}</option>`).join('');
+  const modal = new bootstrap.Modal(document.getElementById('clItemModal'));
+  modal.show();
+  setTimeout(() => document.getElementById('cliText').focus(), 300);
+}
+function saveClItem() {
+  const text = document.getElementById('cliText').value.trim();
+  const start = document.getElementById('cliStart').value.trim();
+  const end = document.getElementById('cliEnd').value.trim();
+  const today = new Date(); today.setHours(0,0,0,0);
+  function parseFR(s) {
+    if (!s) return null;
+    const p = s.split(/[\/\s]/);
+    if (p.length < 3) return null;
+    return new Date(2000 + parseInt(p[2]), parseInt(p[1]) - 1, parseInt(p[0]));
+  }
+  const startDate = parseFR(start);
+  if (startDate && startDate < today) { alert('La date de début ne peut pas être avant aujourd\'hui.'); return; }
+  const time = [start, end].filter(Boolean).join(' → ');
+  const parts = [...document.getElementById('cliParticipants').selectedOptions].map(o => o.value).join('; ');
+  const pres = [...document.getElementById('cliPrereq').selectedOptions].map(o => o.value).join('; ');
+  const url = window._editItemId
+    ? '/projects/checklist-items/' + window._editItemId + '/update'
+    : '/projects/checklists/' + pendingClId + '/items';
+  fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({text, time, participants: parts, prerequisites: pres})
+  }).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('clItemModal')).hide();
+    window._editItemId = null;
+    openCard(currentCardId);
+  });
+}
+function deleteItem(id) {
+  if (!confirm('Supprimer cet élément ?')) return;
+  fetch('/projects/checklist-items/' + id + '/delete', {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => openCard(currentCardId));
+}
+
+function toggleItem(id) {
+  fetch('/projects/checklist-items/' + id + '/toggle', {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => openCard(currentCardId));
+}
+
+function postComment() {
+  const body = document.getElementById('cmComment').value.trim();
+  if (!body || !currentCardId) return;
+  const replyTo = window._replyToId || null;
+  fetch('/projects/cards/' + currentCardId + '/comments', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({body, reply_to_id: replyTo})
+  }).then(() => {
+    document.getElementById('cmComment').value = '';
+    clearReply();
+    openCard(currentCardId);
+  });
+}
+function setReply(id, user, text) {
+  window._replyToId = id;
+  document.getElementById('replyText').textContent = user + ': ' + text;
+  document.getElementById('replyBar').classList.remove('d-none');
+  document.getElementById('cmComment').focus();
+}
+function clearReply() {
+  window._replyToId = null;
+  document.getElementById('replyBar').classList.add('d-none');
+}
+
+function fmtAmount(n, cur) {
+  const v = Number(n) || 0;
+  if (cur === 'USD' || cur === 'EUR') return v.toFixed(2);
+  return Math.round(v).toLocaleString('fr-FR');
+}
+function addBudgetLine() {
+  const accountId = document.getElementById('cmBudAccount').value;
+  const desc = document.getElementById('cmBudDesc').value;
+  const qty = parseFloat(document.getElementById('cmBudQty').value) || 1;
+  const occ = parseFloat(document.getElementById('cmBudOcc').value) || 1;
+  const unitCost = parseFloat(document.getElementById('cmBudUnitCost').value) || 0;
+  const amount = qty * occ * unitCost;
+  const currency = document.getElementById('cmBudCurrency').value;
+  if (!accountId || !currentCardId) { alert('Choisissez un compte.'); return; }
+  fetch('/projects/cards/' + currentCardId + '/budget', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({account_id: accountId, description: desc, amount: amount, kind: 'ordinaire', currency: currency})
+  }).then(() => openCard(currentCardId));
+}
+function deleteBudgetLine(id) {
+  fetch('/projects/card-budget/' + id, {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => openCard(currentCardId));
+}
+
+function setCover(attId) {
+  fetch('/projects/cards/' + currentCardId + '/cover', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({attachment_id: attId})
+  }).then(() => location.reload());
+}
+function moveToBoard(boardId) {
+  if (!boardId) return;
+  if (!confirm('Déplacer cette carte vers ce tableau ?')) return;
+  fetch('/projects/cards/' + currentCardId + '/move-board', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({board_id: boardId})
+  }).then(r => r.json()).then(d => {
+    if (d.ok) location.href = '/projects/' + d.board_id;
+    else alert(d.error || 'Erreur');
+  });
+}
+function uploadAttachment() {
+  const fileInput = document.getElementById('cmFile');
+  if (!fileInput.files.length || !currentCardId) return;
+  const fd = new FormData();
+  fd.append('file', fileInput.files[0]);
+  fetch('/projects/cards/' + currentCardId + '/attachments', {
+    method: 'POST', body: fd, headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => {
+    fileInput.value = '';
+    openCard(currentCardId);
+  });
+}
+
+function setCoverColor(color) {
+  if (!currentCardId) return;
+  fetch('/projects/cards/' + currentCardId + '/update', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({cover_color: color})
+  }).then(() => location.reload());
+}
+
+function decideDelete(reqId, decision) {
+  fetch('/projects/delete-requests/' + reqId + '/decide', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest'},
+    body: JSON.stringify({decision: decision})
+  }).then(() => location.reload());
+}
+
+function requestDelete() {
+  if (!currentCardId || !confirm('Demander la suppression de cette carte ?\nLe créateur du tableau devra accepter.')) return;
+  fetch('/projects/cards/' + currentCardId + '/request-delete', {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(r => r.json()).then(d => {
+    if (d.deleted) { location.reload(); }
+    else { alert(d.message || 'Demande envoyée.'); }
+  });
+}
+
+function duplicateCard() {
+  if (!currentCardId) return;
+  fetch('/projects/cards/' + currentCardId + '/duplicate', {
+    method: 'POST',
+    headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      bootstrap.Modal.getInstance(document.getElementById('cardModal')).hide();
+      location.reload();
+    }
+  });
+}
+
+function archiveCard() {
+  if (!currentCardId || !confirm('Archiver cette carte ?')) return;
+  fetch('/projects/cards/' + currentCardId + '/archive', {
+    method: 'POST', headers: {'X-Requested-With': 'XMLHttpRequest'}
+  }).then(() => {
+    bootstrap.Modal.getInstance(document.getElementById('cardModal')).hide();
+    location.reload();
+  });
+}
+
+// Saisie libre, formatage au blur uniquement
+function setupDateTimeInputs() {
+  ['cmStartDate','cmDueDate'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('blur', function() { formatDateSmart(el); });
+  });
+  ['cmStartTime','cmDueTime'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('blur', function() { formatTimeSmart(el); });
+  });
+}
+setupDateTimeInputs();
+
+function formatDateSmart(el) {
+  const err = document.getElementById('dateError');
+  if (err) err.classList.add('d-none');
+  let raw = (el.value || '').replace(/\D/g, '');
+  if (!raw) { el.value = ''; return true; }
+  let d, mo, y;
+  if (raw.length <= 2) {
+    d = parseInt(raw, 10); mo = 1; y = new Date().getFullYear() % 100;
+  } else if (raw.length === 3) {
+    d = parseInt(raw[0], 10); mo = parseInt(raw.slice(1), 10); y = new Date().getFullYear() % 100;
+  } else if (raw.length === 4) {
+    d = parseInt(raw.slice(0, 2), 10); mo = parseInt(raw.slice(2), 10); y = new Date().getFullYear() % 100;
+  } else {
+    d = parseInt(raw.slice(0, 2), 10); mo = parseInt(raw.slice(2, 4), 10); y = parseInt(raw.slice(4, 6), 10);
+  }
+  if (d > 31 || d < 1 || mo > 12 || mo < 1) {
+    if (err) { err.textContent = (d > 31 || d < 1) ? 'Jour incorrect (1-31)' : 'Mois incorrect (1-12)'; err.classList.remove('d-none'); }
+    return false;
+  }
+  if (isNaN(y)) y = new Date().getFullYear() % 100;
+  el.value = String(d).padStart(2,'0') + '/' + String(mo).padStart(2,'0') + '/' + String(y).padStart(2,'0');
+  return true;
+}
+
+function formatTimeSmart(el) {
+  let raw = (el.value || '').replace(/\D/g, '');
+  if (!raw) { el.value = ''; return; }
+  let h, min;
+  if (raw.length <= 2) { h = parseInt(raw, 10); min = 0; }
+  else { h = parseInt(raw.slice(0, -2), 10); min = parseInt(raw.slice(-2), 10); }
+  if (isNaN(h) || h < 0) h = 0; if (h > 23) h = 23;
+  if (isNaN(min) || min < 0) min = 0; if (min > 59) min = 59;
+  el.value = String(h).padStart(2,'0') + ':' + String(min).padStart(2,'0');
+}
+
+document.getElementById('cardModal').addEventListener('hidden.bs.modal', function() {
+  document.body.classList.remove('modal-open');
+  document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+});
+</script>
+{% endblock %}

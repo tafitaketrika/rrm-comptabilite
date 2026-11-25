@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Activités – La Fourmi{% endblock %}
+{% block extra_css %}
+<style>
+.board-tile {
+  display: block; border-radius: 8px; padding: 1rem 1.1rem; min-height: 100px;
+  color: #fff; text-decoration: none; background: #1a1a1a;
+  transition: transform .12s, box-shadow .12s;
+}
+.board-tile:hover { color: #fff; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.2); }
+.board-tile .site { opacity: .75; font-size: 0.8rem; }
+.bg-blue { background: #0079bf !important; }
+.bg-green { background: #519839 !important; }
+.bg-orange { background: #d29034 !important; }
+.bg-purple { background: #89609e !important; }
+.bg-dark { background: #1a1a1a !important; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h2 class="page-title mb-0"><i class="bi bi-kanban"></i> Activités</h2>
+  <div class="d-flex gap-2">
+    <a href="{{ url_for('projects.my_cards') }}" class="btn btn-outline-dark btn-sm"><i class="bi bi-person-check"></i> Mes cartes</a>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newBoardModal">
+      <i class="bi bi-plus-lg"></i> Nouveau tableau
+    </button>
+  </div>
+</div>
+
+<div class="row g-3">
+  {% for b in boards %}
+  <div class="col-6 col-md-4 col-lg-3">
+    <a href="{{ url_for('projects.view_board', board_id=b.id) }}" class="board-tile bg-{{ b.background or 'dark' }}">
+      <div class="fw-semibold">{{ b.name }}</div>
+      {% if b.site %}<div class="site mt-1">{{ b.site.name }}</div>{% endif %}
+    </a>
+  </div>
+  {% else %}
+  <div class="col-12">
+
+  </div>
+  {% endfor %}
+</div>
+
+<!-- Modal nouveau tableau -->
+<div class="modal fade" id="newBoardModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form autocomplete="off" method="POST" action="{{ url_for('projects.new_board') }}" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Créer un tableau</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label class="form-label">Titre</label>
+          <input type="text" autocomplete="off" name="name" class="form-control" required autofocus>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Comptes autorisés</label>
+          <div class="d-flex small text-muted px-1 mb-1"><span class="flex-grow-1">Compte</span><span style="width:50px;text-align:center">Lecture</span><span style="width:50px;text-align:center">Écriture</span></div>
+          <div id="accTree" style="max-height:220px;overflow-y:auto;border:1px solid #ddd;border-radius:4px;padding:4px 8px">
+            {% macro render_acc(acc) %}
+            {% set kids = acc.children|selectattr('is_active')|list|sort(attribute='code') if acc.children else [] %}
+            <div class="acc-node" data-id="{{ acc.id }}">
+              <div class="d-flex align-items-center" style="gap:4px;padding:2px 0">
+                {% if kids %}<span class="acc-tog" style="cursor:pointer;width:16px" data-open="0"><i class="bi bi-chevron-right"></i></span>{% else %}<span style="width:16px"></span>{% endif %}
+                <span class="small flex-grow-1"><code>{{ acc.code|format_code }}</code> {{ acc.name[:26] }}{% if acc.name|length > 26 %}…{% endif %}</span>
+                <span style="width:50px;text-align:center"><input type="checkbox" name="acc_read" value="{{ acc.id }}" class="form-check-input m-0 acc-read"></span>
+                <span style="width:50px;text-align:center"><input type="checkbox" name="acc_write" value="{{ acc.id }}" class="form-check-input m-0 acc-write"></span>
+              </div>
+              {% if kids %}<div class="acc-kids" style="display:none;padding-left:16px">{% for c in kids %}{{ render_acc(c) }}{% endfor %}</div>{% endif %}
+            </div>
+            {% endmacro %}
+            {% set roots = accounts|selectattr('parent_id', 'none')|list|sort(attribute='code') %}
+            {% for r in roots %}{{ render_acc(r) }}{% endfor %}
+          </div>
+          <div class="form-text">Parent coché → sous-comptes. Tiret = partiel. Aucun = tous.</div>
+        </div>
+        <script>
+        document.querySelectorAll('.acc-tog').forEach(t => {
+          t.addEventListener('click', function() {
+            const kids = this.closest('.acc-node').querySelector(':scope > .acc-kids');
+            if (!kids) return;
+            const open = this.dataset.open === '1';
+            kids.style.display = open ? 'none' : 'block';
+            this.dataset.open = open ? '0' : '1';
+            this.innerHTML = open ? '<i class="bi bi-chevron-right"></i>' : '<i class="bi bi-chevron-down"></i>';
+          });
+        });
+        function updateParent(cb) {
+          const node = cb.closest('.acc-node');
+          const parent = node.parentElement.closest('.acc-node');
+          if (!parent) return;
+          const cls = cb.classList.contains('acc-read') ? 'acc-read' : 'acc-write';
+          const kids = parent.querySelectorAll(':scope > .acc-kids > .acc-node > div > span > .' + cls);
+          const checked = [...kids].filter(k => k.checked).length;
+          const parentCb = parent.querySelector(':scope > div > span > .' + cls);
+          if (parentCb) {
+            parentCb.checked = checked === kids.length && checked > 0;
+            parentCb.indeterminate = checked > 0 && checked < kids.length;
+          }
+          updateParent(parentCb);
+        }
+        document.querySelectorAll('.acc-read, .acc-write').forEach(cb => {
+          cb.addEventListener('change', function() {
+            const node = this.closest('.acc-node');
+            const cls = this.classList.contains('acc-read') ? 'acc-read' : 'acc-write';
+            node.querySelectorAll('.' + cls).forEach(c => { if (c !== this) c.checked = this.checked; });
+            updateParent(this);
+          });
+        });
+        </script>
+        <div class="mb-2">
+
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+        <button type="submit" class="btn btn-primary">Créer</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
